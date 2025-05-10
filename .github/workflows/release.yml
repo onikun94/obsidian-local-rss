@@ -45,4 +45,4 @@ jobs:
           gh release create "$tag" \
             --title="$tag" \
             --notes="リリースノートはGitHubのリリースページを編集してください" \
-            obsidian-local-rss.zip main.js manifest.json README.md 
+            obsidian-local-rss.zip main.js manifest.json styles.css README.md 
