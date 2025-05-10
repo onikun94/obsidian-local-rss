@@ -1,11 +1,11 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "obsidian-local-rss",
+	"name": "Local RSS",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "Download RSS feed articles to local files in Obsidian.",
+	"author": "Local RSS Developer",
+	"authorUrl": "https://github.com/onikun94",
+	"fundingUrl": "https://ko-fi.com/shotovim",
 	"isDesktopOnly": false
 }
