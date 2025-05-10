@@ -423,6 +423,7 @@ export default class LocalRssPlugin extends Plugin {
 		return '';
 	}
 
+
 	// 古いファイルを削除する関数
 	async deleteOldFiles(folderPath: string) {
 		try {
@@ -456,7 +457,6 @@ export default class LocalRssPlugin extends Plugin {
 								const publishedTime = new Date(publishedMatch[1]).getTime();
 								if (publishedTime && publishedTime < cutoffDate) {
 									await this.app.vault.adapter.remove(file);
-									console.log(`古いファイルを削除しました（公開日基準）: ${file}`);
 								}
 							}
 						} else {
@@ -469,14 +469,12 @@ export default class LocalRssPlugin extends Plugin {
 								const savedTime = new Date(savedMatch[1]).getTime();
 								if (savedTime && savedTime < cutoffDate) {
 									await this.app.vault.adapter.remove(file);
-									console.log(`古いファイルを削除しました（保存日基準）: ${file}`);
 								}
 							} else {
 								// フロントマターに保存日時がない場合はファイルの作成日時を使用
 								const stat = await this.app.vault.adapter.stat(file);
 								if (stat && stat.ctime < cutoffDate) {
 									await this.app.vault.adapter.remove(file);
-									console.log(`古いファイルを削除しました（ファイル作成日基準）: ${file}`);
 								}
 							}
 						}
@@ -504,7 +502,6 @@ class AddFeedModal extends Modal {
 
 	onOpen() {
 		const {contentEl} = this;
-		contentEl.createEl('h2', {text: 'RSSフィードを追加'});
 
 		new Setting(contentEl)
 			.setName('フィード名')
@@ -663,9 +660,6 @@ class LocalRssSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
-		// 自動削除設定
-		containerEl.createEl('h3', {text: '自動削除設定'});
-		
 		// 自動削除有効/無効の設定
 		new Setting(containerEl)
 			.setName('古い記事を自動削除')
