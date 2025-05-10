@@ -1,0 +1,48 @@
+name: リリース
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: PNPM設定
+        uses: pnpm/action-setup@v4
+
+      - name: Node.js設定
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      - name: プラグインのビルド
+        run: pnpm build
+
+      - name: リリース作成
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          
+          # リリースファイルの作成
+          mkdir obsidian-local-rss
+          cp main.js manifest.json styles.css README.md obsidian-local-rss/
+          zip -r obsidian-local-rss.zip obsidian-local-rss
+          
+          # GitHubリリースの作成
+          gh release create "$tag" \
+            --title="$tag" \
+            --notes="リリースノートはGitHubのリリースページを編集してください" \
+            obsidian-local-rss.zip main.js manifest.json README.md 
