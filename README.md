@@ -1,6 +1,6 @@
-# Obsidian Local RSS
+# Local RSS
 
-このプラグインは、RSSフィードの記事をObsidianのローカルマークダウンファイルとして保存することができます。
+このプラグインは、RSSフィードの記事をローカルマークダウンファイルとして保存することができます。
 
 ## 機能
 
@@ -31,16 +31,14 @@
 - `{{link}}`: 記事のURL
 - `{{author}}`: 記事の著者
 - `{{published}}`: 公開日（YYYY-MM-DD形式）
-- `{{#tags}}`: カテゴリをタグとして表示（コンテンツテンプレートのみ）
-- `{{content}}`: 記事の内容（コンテンツテンプレートのみ）
+- `{{publishedTime}}`: 公開日時（設定した日時フォーマットで表示）
+- `{{savedTime}}`: 記事が保存された日時
+- `{{#tags}}`: カテゴリをタグとして表示
+- `{{#image}}...{{/image}}`: 画像ブロック（画像がある場合のみ表示）
+- `{{image}}`: 記事の画像URL（画像ブロック内で使用）
+- `{{imageWidth}}`: 画像の幅（設定で指定）
+- `{{content}}`: 記事の内容
 
-## インストール
-
-### 手動インストール
-
-1. 最新の[リリース](https://github.com/yourusername/obsidian-local-rss/releases)から`main.js`、`manifest.json`、`styles.css`をダウンロード
-2. Obsidianのプラグインフォルダ（`VaultFolder/.obsidian/plugins/obsidian-local-rss/`）にファイルをコピー
-3. Obsidianを再起動し、プラグインを有効化
 
 ## 開発
 
