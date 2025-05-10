@@ -1,7 +1,7 @@
 {
 	"id": "local-rss",
 	"name": "Local RSS",
-	"version": "1.0.0",
+	"version": "0.1.2",
 	"minAppVersion": "0.15.0",
 	"description": "Download RSS feed articles to local files.",
 	"author": "Local RSS Developer",
