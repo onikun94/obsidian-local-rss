@@ -613,13 +613,21 @@ class LocalRssSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName('コンテンツテンプレート')
 			.setDesc('フロントマター付きの記事コンテンツのテンプレート')
-			.addTextArea(text => text
-				.setPlaceholder('---\ntitle: {{title}}\n---\n\n{{content}}')
-				.setValue(this.plugin.settings.template)
-				.onChange(async (value) => {
-					this.plugin.settings.template = value;
-					await this.plugin.saveSettings();
-				}));
+			.addTextArea(text => {
+				text.setPlaceholder('---\ntitle: {{title}}\n---\n\n{{content}}')
+					.setValue(this.plugin.settings.template)
+					.onChange(async (value) => {
+						this.plugin.settings.template = value;
+						await this.plugin.saveSettings();
+					});
+				
+				// テキストエリアの幅を広げる
+				const textAreaEl = text.inputEl;
+				textAreaEl.style.width = '100%';
+				textAreaEl.style.minHeight = '200px';
+				
+				return text;
+			});
 		
 		// Update interval setting
 		new Setting(containerEl)
