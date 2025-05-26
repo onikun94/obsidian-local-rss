@@ -1,0 +1,92 @@
+name: バージョン更新
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'バージョンタイプ'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: チェックアウト
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: PNPM設定
+        uses: pnpm/action-setup@v4
+
+      - name: Node.js設定
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      - name: Gitユーザー設定
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: バージョン更新
+        run: |
+          # 現在のバージョンを取得
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "現在のバージョン: $CURRENT_VERSION"
+          
+          # バージョンを更新
+          npm version ${{ github.event.inputs.version_type }} --no-git-tag-version
+          
+          # 新しいバージョンを取得
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "新しいバージョン: $NEW_VERSION"
+          
+          # manifest.jsonとversions.jsonを更新
+          npm run version
+          
+          echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_ENV
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+      - name: プルリクエスト作成
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: バージョンを ${{ env.NEW_VERSION }} に更新"
+          title: "🔖 バージョン ${{ env.NEW_VERSION }} への更新"
+          body: |
+            ## バージョン更新
+            
+            - **前のバージョン**: ${{ env.CURRENT_VERSION }}
+            - **新しいバージョン**: ${{ env.NEW_VERSION }}
+            - **更新タイプ**: ${{ github.event.inputs.version_type }}
+            
+            ### 変更内容
+            - `package.json` のバージョンを更新
+            - `manifest.json` のバージョンを更新  
+            - `versions.json` に新しいバージョンエントリを追加
+            
+            このPRをマージ後、以下のコマンドでリリースタグを作成してください：
+            ```bash
+            git tag ${{ env.NEW_VERSION }}
+            git push origin ${{ env.NEW_VERSION }}
+            ```
+            
+            または、GitHub上で[新しいリリース](../../releases/new)を作成してください。
+          branch: version-update-${{ env.NEW_VERSION }}
+          delete-branch: true 
