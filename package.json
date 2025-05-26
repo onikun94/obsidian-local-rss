@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-local-rss",
-	"version": "1.0.0",
+	"version": "0.1.2",
 	"description": "Download RSS feed articles to local files in Obsidian",
 	"main": "main.js",
 	"scripts": {

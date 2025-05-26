@@ -75,7 +75,7 @@ jobs:
 
       - name: 変更をプッシュ
         run: |
-          git push origin main
+          git push origin master
 
       - name: タグ作成とプッシュ
         run: |
