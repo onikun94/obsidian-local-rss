@@ -1,0 +1,108 @@
+name: 自動リリース
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'バージョンタイプ'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      release_notes:
+        description: 'リリースノート（オプション）'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  auto-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: チェックアウト
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: PNPM設定
+        uses: pnpm/action-setup@v4
+
+      - name: Node.js設定
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      - name: Gitユーザー設定
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: バージョン更新とコミット
+        run: |
+          # 現在のバージョンを取得
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "現在のバージョン: $CURRENT_VERSION"
+          
+          # バージョンを更新
+          npm version ${{ github.event.inputs.version_type }} --no-git-tag-version
+          
+          # 新しいバージョンを取得
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "新しいバージョン: $NEW_VERSION"
+          
+          # manifest.jsonとversions.jsonを更新
+          npm run version
+          
+          # 変更をコミット
+          git add package.json manifest.json versions.json
+          git commit -m "chore: バージョンを ${NEW_VERSION} に更新"
+          
+          echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_ENV
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+      - name: プラグインのビルド
+        run: pnpm build
+
+      - name: 変更をプッシュ
+        run: |
+          git push origin main
+
+      - name: タグ作成とプッシュ
+        run: |
+          git tag ${{ env.NEW_VERSION }}
+          git push origin ${{ env.NEW_VERSION }}
+
+      - name: リリースファイルの準備
+        run: |
+          mkdir obsidian-local-rss
+          cp main.js manifest.json styles.css README.md obsidian-local-rss/
+          zip -r obsidian-local-rss.zip obsidian-local-rss
+
+      - name: GitHubリリースの作成
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_NOTES="${{ github.event.inputs.release_notes }}"
+          if [ -z "$RELEASE_NOTES" ]; then
+            RELEASE_NOTES="バージョン ${{ env.NEW_VERSION }} のリリース"
+          fi
+          
+          gh release create "${{ env.NEW_VERSION }}" \
+            --title="${{ env.NEW_VERSION }}" \
+            --notes="$RELEASE_NOTES" \
+            obsidian-local-rss.zip
+
+      - name: リリース完了通知
+        run: |
+          echo "🎉 リリース ${{ env.NEW_VERSION }} が正常に作成されました！"
+          echo "リリースページ: https://github.com/${{ github.repository }}/releases/tag/${{ env.NEW_VERSION }}" 
