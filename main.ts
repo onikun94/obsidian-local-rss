@@ -620,12 +620,6 @@ class LocalRssSettingTab extends PluginSettingTab {
 						this.plugin.settings.template = value;
 						await this.plugin.saveSettings();
 					});
-				
-				// テキストエリアの幅を広げる
-				const textAreaEl = text.inputEl;
-				textAreaEl.style.width = '100%';
-				textAreaEl.style.minHeight = '200px';
-				
 				return text;
 			});
 		
