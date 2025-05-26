@@ -100,7 +100,10 @@ jobs:
           gh release create "${{ env.NEW_VERSION }}" \
             --title="${{ env.NEW_VERSION }}" \
             --notes="$RELEASE_NOTES" \
-            obsidian-local-rss.zip
+            obsidian-local-rss.zip \
+            main.js \
+            manifest.json \
+            styles.css
 
       - name: リリース完了通知
         run: |
