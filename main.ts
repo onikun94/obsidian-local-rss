@@ -65,7 +65,7 @@ export default class LocalRssPlugin extends Plugin {
 		await this.loadSettings();
 
 		// サイドバーに手動取得ボタンを追加
-		this.addRibbonIcon('rss', 'Update RSS Feeds', (evt: MouseEvent) => {
+		this.addRibbonIcon('rss', 'Update RSS feeds', (evt: MouseEvent) => {
 			this.updateFeeds();
 		});
 
