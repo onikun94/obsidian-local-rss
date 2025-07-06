@@ -1,55 +1,55 @@
 # Local RSS
 
-このプラグインは、RSSフィードの記事をローカルマークダウンファイルとして保存することができます。
+This plugin allows you to save articles from RSS feeds as local markdown files.
 
-## 機能
+## Features
 
-- RSSフィードから記事を取得し、マークダウンファイルとして保存
-- 複数のRSSフィードを管理
-- 定期的な自動更新
-- カスタマイズ可能なファイル名とコンテンツテンプレート
-- フロントマターとタグのサポート
+- Fetch articles from RSS feeds and save them as markdown files
+- Manage multiple RSS feeds
+- Automatic periodic updates
+- Customizable file names and content templates
+- Front matter and tag support
 
-## 使い方
+## Usage
 
-1. プラグインをインストールして有効化する
-2. 設定からRSSフォルダを設定する（デフォルトは「RSS」）
-3. 「Add Feed」ボタンをクリックして新しいフィードを追加する
-4. フィード名とURLを入力する（フォルダ名はオプション）
-5. 「Update Now」ボタンをクリックしてフィードを更新する、またはバックグラウンドでの自動更新を待つ
+1. Install and enable the plugin
+2. Configure the RSS folder in settings (default is "RSS")
+3. Click the "Add Feed" button to add a new feed
+4. Enter the feed name and URL (folder name is optional)
+5. Click the "Update Now" button to update the feed, or wait for automatic background updates
 
-### コマンド
+### Commands
 
-- **Update RSS feeds**: すべての有効なRSSフィードを更新
-- **Add RSS feed**: 新しいRSSフィードを追加
+- **Update RSS feeds**: Update all enabled RSS feeds
+- **Add RSS feed**: Add a new RSS feed
 
-### テンプレート変数
+### Template Variables
 
-ファイル名とコンテンツのテンプレートで使用できる変数：
+Variables available in file name and content templates:
 
-- `{{title}}`: 記事のタイトル
-- `{{link}}`: 記事のURL
-- `{{author}}`: 記事の著者
-- `{{published}}`: 公開日（YYYY-MM-DD形式）
-- `{{publishedTime}}`: 公開日時（設定した日時フォーマットで表示）
-- `{{savedTime}}`: 記事が保存された日時
-- `{{#tags}}`: カテゴリをタグとして表示
-- `{{#image}}...{{/image}}`: 画像ブロック（画像がある場合のみ表示）
-- `{{image}}`: 記事の画像URL（画像ブロック内で使用）
-- `{{imageWidth}}`: 画像の幅（設定で指定）
-- `{{content}}`: 記事の内容
+- `{{title}}`: Article title
+- `{{link}}`: Article URL
+- `{{author}}`: Article author
+- `{{published}}`: Publication date (YYYY-MM-DD format)
+- `{{publishedTime}}`: Publication date and time (displayed in configured datetime format)
+- `{{savedTime}}`: Date and time when the article was saved
+- `{{#tags}}`: Display categories as tags
+- `{{#image}}...{{/image}}`: Image block (displayed only if image exists)
+- `{{image}}`: Article image URL (use within image block)
+- `{{imageWidth}}`: Image width (specified in settings)
+- `{{content}}`: Article content
 
 
-## 開発
+## Development
 
-- このリポジトリをクローン
-- `npm i`または`yarn`で依存関係をインストール
-- `npm run dev`で開発モードを開始
+- Clone this repository
+- Install dependencies with `npm i` or `yarn`
+- Start development mode with `npm run dev`
 
-## ライセンス
+## License
 
 [MIT](LICENSE)
 
-## 謝辞
+## Acknowledgments
 
-このプラグインは[joethei/obsidian-rss](https://github.com/joethei/obsidian-rss)の実装を参考にしています。
+This plugin is inspired by the implementation of [joethei/obsidian-rss](https://github.com/joethei/obsidian-rss).
