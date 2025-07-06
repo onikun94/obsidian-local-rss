@@ -1,7 +1,7 @@
-import { App, Modal, Notice, Plugin, PluginSettingTab, Setting, normalizePath, requestUrl } from 'obsidian';
+import { App, Modal, Notice, Plugin, PluginSettingTab, Setting, normalizePath, requestUrl, sanitizeHTMLToDom, TFile, TFolder } from 'obsidian';
 import * as xml2js from 'xml2js';
+import { t } from './localization';
 
-// Remember to rename these classes and interfaces!
 
 interface LocalRssSettings {
 	feeds: Feed[];
@@ -15,8 +15,43 @@ interface LocalRssSettings {
 	imageWidth: string;
 	autoDeleteEnabled: boolean;
 	autoDeleteDays: number;
-	autoDeleteTimeUnit: string; // 'days' または 'minutes'
-	autoDeleteBasedOn: string; // 'published' または 'saved'
+	autoDeleteTimeUnit: string;
+	autoDeleteBasedOn: string;
+}
+
+interface RssFeedItem {
+	title?: string;
+	description?: string;
+	'content:encoded'?: string;
+	link?: string;
+	pubDate?: string;
+	published?: string;
+	author?: string;
+	'dc:creator'?: string;
+	category?: string | string[];
+	'media:content'?: { $: { url: string } };
+	'media:thumbnail'?: { $: { url: string } };
+	enclosure?: { $: { type: string; url: string } };
+}
+
+interface AtomFeedItem {
+	title?: string;
+	summary?: string;
+	content?: string;
+	link?: { href: string };
+	published?: string;
+	updated?: string;
+	author?: { name: string };
+	category?: AtomCategory | AtomCategory[];
+}
+
+interface AtomCategory {
+	term?: string;
+}
+
+interface AtomFeed {
+	title?: string;
+	entry?: AtomFeedItem | AtomFeedItem[];
 }
 
 interface Feed {
@@ -54,7 +89,6 @@ const DEFAULT_SETTINGS: LocalRssSettings = {
 	autoDeleteBasedOn: 'saved'
 }
 
-// マークダウンフロントマターでエスケープが必要な文字のリスト
 const YAML_SPECIAL_CHARS = /[[\]{}:>|*&!%@,]/;
 
 export default class LocalRssPlugin extends Plugin {
@@ -64,33 +98,28 @@ export default class LocalRssPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
-		// サイドバーに手動取得ボタンを追加
-		this.addRibbonIcon('rss', 'Update RSS Feeds', (evt: MouseEvent) => {
+		this.addRibbonIcon('rss', t('updateRssFeeds'), (evt: MouseEvent) => {
 			this.updateFeeds();
 		});
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new LocalRssSettingTab(this.app, this));
 
-		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
 			id: 'update-rss-feeds',
-			name: 'Update RSS feeds',
+			name: t('updateRssFeeds'),
 			callback: () => {
 				this.updateFeeds();
 			}
 		});
 
-		// Add a command to add a new feed
 		this.addCommand({
 			id: 'add-rss-feed',
-			name: 'Add RSS feed',
+			name: t('addRssFeed'),
 			callback: () => {
 				new AddFeedModal(this.app, this).open();
 			}
 		});
 
-		// Start the update interval
 		this.startUpdateInterval();
 	}
 
@@ -109,12 +138,10 @@ export default class LocalRssPlugin extends Plugin {
 	}
 
 	startUpdateInterval() {
-		// Clear any existing interval
 		if (this.updateIntervalId) {
 			window.clearInterval(this.updateIntervalId);
 		}
 
-		// Set up a new interval if the interval is greater than 0
 		if (this.settings.updateInterval > 0) {
 			this.updateIntervalId = window.setInterval(() => {
 				this.updateFeeds();
@@ -123,38 +150,33 @@ export default class LocalRssPlugin extends Plugin {
 	}
 
 	async updateFeeds() {
-		new Notice('RSSフィードを更新中...');
-		
-		// Create the base RSS folder if it doesn't exist
+		new Notice(t('updatingRssFeeds'));
+
 		const folderPath = this.settings.folderPath;
-		if (!(await this.app.vault.adapter.exists(folderPath))) {
+		const folder = this.app.vault.getAbstractFileByPath(folderPath);
+		if (!folder) {
 			await this.app.vault.createFolder(folderPath);
 		}
-		
-		// Process each enabled feed
+
 		for (const feed of this.settings.feeds.filter(f => f.enabled)) {
 			try {
-				// Fetch the RSS feed
 				const response = await requestUrl(feed.url);
 				if (response.status !== 200) {
 					new Notice(`フィードの取得に失敗しました: ${feed.name}`);
 					continue;
 				}
-				
-				// Parse the XML
+
 				const parser = new xml2js.Parser({ explicitArray: false });
 				const result = await parser.parseStringPromise(response.text);
-				
-				// Create the feed folder if needed
+
 				const feedFolderPath = `${folderPath}/${feed.folder || feed.name}`;
-				if (!(await this.app.vault.adapter.exists(feedFolderPath))) {
+				const feedFolder = this.app.vault.getAbstractFileByPath(feedFolderPath);
+				if (!feedFolder) {
 					await this.app.vault.createFolder(feedFolderPath);
 				}
-				
-				// Process the RSS items
+
 				const channel = result.rss?.channel;
 				if (!channel) {
-					// Try to handle Atom feeds
 					const feed = result.feed;
 					if (feed && feed.entry) {
 						const items = Array.isArray(feed.entry) ? feed.entry : [feed.entry];
@@ -162,38 +184,35 @@ export default class LocalRssPlugin extends Plugin {
 							await this.processAtomItem(item, feed, feedFolderPath);
 						}
 					} else {
-						new Notice(`サポートされていないフィード形式です: ${feed.name}`);
+						new Notice(t('unsupportedFeedFormat', feed.name));
 					}
 					continue;
 				}
-				
+
 				const items = Array.isArray(channel.item) ? channel.item : [channel.item];
-				
+
 				for (const item of items) {
 					await this.processRssItem(item, feed, feedFolderPath);
 				}
-				
-				// 古いファイルを削除（自動削除が有効な場合）
+
 				if (this.settings.autoDeleteEnabled) {
 					await this.deleteOldFiles(feedFolderPath);
 				}
-				
-				new Notice(`フィードを更新しました: ${feed.name}`);
+
+				new Notice(t('updatedFeed', feed.name));
 			} catch (error) {
 				console.error(`フィード ${feed.name} の更新中にエラーが発生しました:`, error);
-				new Notice(`フィードの更新中にエラーが発生しました: ${feed.name}`);
+				new Notice(t('errorUpdatingFeed', feed.name));
 			}
 		}
-		
-		// Update the last update time
+
 		this.settings.lastUpdateTime = Date.now();
 		await this.saveSettings();
-		
-		new Notice('RSSフィードの更新が完了しました');
+
+		new Notice(t('rssFeedUpdateCompleted'));
 	}
-	
-	async processRssItem(item: any, feed: Feed, folderPath: string) {
-		// Extract item data
+
+	async processRssItem(item: RssFeedItem, feed: Feed, folderPath: string) {
 		const rssItem: RssItem = {
 			title: item.title || 'Untitled',
 			description: item.description || '',
@@ -205,8 +224,7 @@ export default class LocalRssPlugin extends Plugin {
 			imageUrl: '',
 			savedDate: new Date().toISOString()
 		};
-		
-		// Process categories
+
 		if (item.category) {
 			if (Array.isArray(item.category)) {
 				rssItem.categories = item.category;
@@ -214,45 +232,37 @@ export default class LocalRssPlugin extends Plugin {
 				rssItem.categories = [item.category];
 			}
 		}
-		
-		// Extract image URL if enabled
+
 		if (this.settings.includeImages) {
 			rssItem.imageUrl = this.extractImageUrl(item);
 		}
-		
-		// Create a normalized filename
+
 		let fileName = this.settings.fileNameTemplate
 			.replace(/{{title}}/g, rssItem.title)
 			.replace(/{{published}}/g, this.formatDateTime(new Date(rssItem.pubDate)));
-		
-		// Sanitize the filename to remove special characters
+
 		fileName = fileName.replace(/[\\/:*?"<>|]/g, '-');
 		fileName = normalizePath(`${folderPath}/${fileName}.md`);
-		
-		// Check if the file already exists
-		if (await this.app.vault.adapter.exists(fileName)) {
-			return; // Skip if the file already exists
+
+		const existingFile = this.app.vault.getAbstractFileByPath(fileName);
+		if (existingFile) {
+			return;
 		}
-		
-		// Format the dates
+
 		const pubDate = new Date(rssItem.pubDate);
 		const fullDateTime = this.formatDateTime(pubDate);
-		
-		// 保存日時のフォーマット
+
 		const savedDate = new Date(rssItem.savedDate);
 		const fullSavedDateTime = this.formatDateTime(savedDate);
-		
-		// YAMLで問題になる可能性のある文字を持つ値をエスケープ
+
 		const escapedTitle = this.escapeYamlValue(rssItem.title);
 		const escapedAuthor = this.escapeYamlValue(rssItem.author);
-		
-		// 本文中の画像サイズを調整
+
 		let processedContent = rssItem.content;
 		if (this.settings.imageWidth && this.settings.imageWidth !== '100%') {
 			processedContent = this.resizeImagesInContent(processedContent);
 		}
-		
-		// Create the file content using the template
+
 		const content = this.settings.template
 			.replace(/{{title}}/g, escapedTitle)
 			.replace(/{{link}}/g, rssItem.link)
@@ -268,13 +278,11 @@ export default class LocalRssPlugin extends Plugin {
 				return '';
 			})
 			.replace(/{{content}}/g, processedContent);
-		
-		// Create the file
+
 		await this.app.vault.create(fileName, content);
 	}
 
-	async processAtomItem(item: any, feed: any, folderPath: string) {
-		// Extract item data
+	async processAtomItem(item: AtomFeedItem, feed: AtomFeed, folderPath: string) {
 		const rssItem: RssItem = {
 			title: item.title || 'Untitled',
 			description: item.summary || '',
@@ -286,54 +294,45 @@ export default class LocalRssPlugin extends Plugin {
 			imageUrl: '',
 			savedDate: new Date().toISOString()
 		};
-		
-		// Process categories
+
 		if (item.category) {
 			if (Array.isArray(item.category)) {
-				rssItem.categories = item.category.map((c: any) => c.term || c);
+				rssItem.categories = item.category.map((c: AtomCategory) => c.term || '');
 			} else {
-				rssItem.categories = [item.category.term || item.category];
+				rssItem.categories = [item.category.term || ''];
 			}
 		}
-		
-		// Extract image URL if enabled
+
 		if (this.settings.includeImages) {
 			rssItem.imageUrl = this.extractImageUrl(item);
 		}
-		
-		// Create a normalized filename
+
 		let fileName = this.settings.fileNameTemplate
 			.replace(/{{title}}/g, rssItem.title)
 			.replace(/{{published}}/g, this.formatDateTime(new Date(rssItem.pubDate)));
-		
-		// Sanitize the filename to remove special characters
+
 		fileName = fileName.replace(/[\\/:*?"<>|]/g, '-');
 		fileName = normalizePath(`${folderPath}/${fileName}.md`);
-		
-		// Check if the file already exists
-		if (await this.app.vault.adapter.exists(fileName)) {
-			return; // Skip if the file already exists
+
+		const existingFile = this.app.vault.getAbstractFileByPath(fileName);
+		if (existingFile) {
+			return;
 		}
-		
-		// Format the dates
+
 		const pubDate = new Date(rssItem.pubDate);
 		const fullDateTime = this.formatDateTime(pubDate);
-		
-		// 保存日時のフォーマット
+
 		const savedDate = new Date(rssItem.savedDate);
 		const fullSavedDateTime = this.formatDateTime(savedDate);
-		
-		// YAMLで問題になる可能性のある文字を持つ値をエスケープ
+
 		const escapedTitle = this.escapeYamlValue(rssItem.title);
 		const escapedAuthor = this.escapeYamlValue(rssItem.author);
-		
-		// 本文中の画像サイズを調整
+
 		let processedContent = rssItem.content;
 		if (this.settings.imageWidth && this.settings.imageWidth !== '100%') {
 			processedContent = this.resizeImagesInContent(processedContent);
 		}
-		
-		// Create the file content using the template
+
 		const content = this.settings.template
 			.replace(/{{title}}/g, escapedTitle)
 			.replace(/{{link}}/g, rssItem.link)
@@ -349,40 +348,36 @@ export default class LocalRssPlugin extends Plugin {
 				return '';
 			})
 			.replace(/{{content}}/g, processedContent);
-		
-		// Create the file
+
 		await this.app.vault.create(fileName, content);
 	}
-	
-	// HTMLコンテンツ内の画像サイズを調整する関数
+
 	resizeImagesInContent(content: string): string {
-		// img タグを検出して width 属性を追加
-		return content.replace(/<img(.*?)>/g, (match, attributes) => {
-			// すでに width または style が指定されている場合は変更しない
-			if (attributes.includes('width=') || attributes.includes('style=')) {
-				return match;
-			}
-			return `<img${attributes} width="${this.settings.imageWidth}">`;
+		// Since we're dealing with RSS content that will be saved as markdown,
+		// we'll use regex to add width attributes to img tags
+		// This avoids using innerHTML while still processing the content
+
+		// Regular expression to match img tags without width attribute
+		const imgRegex = /<img\s+(?![^>]*\swidth=)(?![^>]*\sstyle=)([^>]*?)>/gi;
+
+		// Replace img tags to add width attribute
+		return content.replace(imgRegex, (match, attributes) => {
+			return `<img ${attributes} width="${this.settings.imageWidth}">`;
 		});
 	}
-	
-	// YAMLフロントマターで問題になりうる値をエスケープする関数
+
 	escapeYamlValue(value: string): string {
-		// 特殊文字を含む場合はダブルクォートでエスケープ
 		if (YAML_SPECIAL_CHARS.test(value)) {
-			// バックスラッシュとダブルクォートをエスケープ
 			const escapedValue = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 			return `"${escapedValue}"`;
 		}
 		return value;
 	}
-	
-	// 日付フォーマット関数（YYYY-MM-DD）
+
 	formatDate(date: Date): string {
 		return date.toISOString().split('T')[0];
 	}
-	
-	// 日付と時間フォーマット関数
+
 	formatDateTime(date: Date): string {
 		const year = date.getFullYear();
 		const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -390,97 +385,89 @@ export default class LocalRssPlugin extends Plugin {
 		const hours = String(date.getHours()).padStart(2, '0');
 		const minutes = String(date.getMinutes()).padStart(2, '0');
 		const seconds = String(date.getSeconds()).padStart(2, '0');
-		
+
 		return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 	}
-	
-	// 画像URLを抽出する関数
-	extractImageUrl(item: any): string {
-		// media:contentから取得を試みる
-		if (item['media:content'] && item['media:content'].$.url) {
-			return item['media:content'].$.url;
+
+	extractImageUrl(item: RssFeedItem | AtomFeedItem): string {
+		if ('media:content' in item || 'media:thumbnail' in item || 'enclosure' in item) {
+			const rssItem = item as RssFeedItem;
+
+			if (rssItem['media:content'] && rssItem['media:content'].$.url) {
+				return rssItem['media:content'].$.url;
+			}
+
+			if (rssItem['media:thumbnail'] && rssItem['media:thumbnail'].$.url) {
+				return rssItem['media:thumbnail'].$.url;
+			}
+
+			if (rssItem.enclosure && rssItem.enclosure.$.type && rssItem.enclosure.$.type.startsWith('image/')) {
+				return rssItem.enclosure.$.url;
+			}
 		}
-		
-		// media:thumbnailから取得を試みる
-		if (item['media:thumbnail'] && item['media:thumbnail'].$.url) {
-			return item['media:thumbnail'].$.url;
+
+		let content = '';
+		if ('content:encoded' in item) {
+			content = (item as RssFeedItem)['content:encoded'] || (item as RssFeedItem).description || '';
+		} else if ('content' in item) {
+			content = (item as AtomFeedItem).content || (item as AtomFeedItem).summary || '';
 		}
-		
-		// enclosureから取得を試みる
-		if (item.enclosure && item.enclosure.$.type && item.enclosure.$.type.startsWith('image/')) {
-			return item.enclosure.$.url;
-		}
-		
-		// contentから画像を抽出
-		if (item['content:encoded'] || item.description) {
-			const content = item['content:encoded'] || item.description;
+
+		if (content) {
 			const match = /<img.*?src=["'](.*?)["']/.exec(content);
 			if (match && match[1]) {
 				return match[1];
 			}
 		}
-		
+
 		return '';
 	}
 
 
-	// 古いファイルを削除する関数
 	async deleteOldFiles(folderPath: string) {
 		try {
-			// フォルダ内のファイル一覧を取得
-			const files = await this.app.vault.adapter.list(folderPath);
-			
-			// 現在の日時から削除期間を計算
+			const folder = this.app.vault.getAbstractFileByPath(folderPath) as TFolder;
+			if (!folder || !(folder instanceof TFolder)) {
+				return;
+			}
+			const files = folder.children.filter(file => file instanceof TFile && file.extension === 'md') as TFile[];
+
 			let cutoffDate: number;
 			if (this.settings.autoDeleteTimeUnit === 'minutes') {
-				// 分単位で計算
 				cutoffDate = Date.now() - (this.settings.autoDeleteDays * 60 * 1000);
 			} else {
-				// 日数単位で計算（デフォルト）
 				cutoffDate = Date.now() - (this.settings.autoDeleteDays * 24 * 60 * 60 * 1000);
 			}
-			
-			// MDファイルのみを対象に処理
-			for (const file of files.files) {
-				if (file.endsWith('.md')) {
-					try {
-						// ファイルの内容を読み込む
-						const fileContent = await this.app.vault.adapter.read(file);
-						
-						// 削除基準によって判断を分ける
-						if (this.settings.autoDeleteBasedOn === 'publish_date') {
-							// 公開日を基準に削除
-							// フロントマターから公開日時を抽出
-							const publishedMatch = fileContent.match(/publish_date: (.*?)$/m);
-							
-							if (publishedMatch && publishedMatch[1]) {
-								const publishedTime = new Date(publishedMatch[1]).getTime();
-								if (publishedTime && publishedTime < cutoffDate) {
-									await this.app.vault.adapter.remove(file);
-								}
-							}
-						} else {
-							// 保存日を基準に削除（デフォルト）
-							// まずはフロントマターからsavedを取得
-							const savedMatch = fileContent.match(/saved: (.*?)$/m);
-							
-							if (savedMatch && savedMatch[1]) {
-								// フロントマターに保存日時がある場合はそれを使用
-								const savedTime = new Date(savedMatch[1]).getTime();
-								if (savedTime && savedTime < cutoffDate) {
-									await this.app.vault.adapter.remove(file);
-								}
-							} else {
-								// フロントマターに保存日時がない場合はファイルの作成日時を使用
-								const stat = await this.app.vault.adapter.stat(file);
-								if (stat && stat.ctime < cutoffDate) {
-									await this.app.vault.adapter.remove(file);
-								}
+
+			for (const file of files) {
+				try {
+					const fileContent = await this.app.vault.read(file);
+
+					if (this.settings.autoDeleteBasedOn === 'publish_date') {
+						const publishedMatch = fileContent.match(/publish_date: (.*?)$/m);
+
+						if (publishedMatch && publishedMatch[1]) {
+							const publishedTime = new Date(publishedMatch[1]).getTime();
+							if (publishedTime && publishedTime < cutoffDate) {
+								await this.app.vault.delete(file);
 							}
 						}
-					} catch (e) {
-						console.error(`ファイル処理中にエラーが発生しました: ${file}`, e);
+					} else {
+						const savedMatch = fileContent.match(/saved: (.*?)$/m);
+
+						if (savedMatch && savedMatch[1]) {
+							const savedTime = new Date(savedMatch[1]).getTime();
+							if (savedTime && savedTime < cutoffDate) {
+								await this.app.vault.delete(file);
+							}
+						} else {
+							if (file.stat.ctime < cutoffDate) {
+								await this.app.vault.delete(file);
+							}
+						}
 					}
+				} catch (e) {
+					console.error(`ファイル処理中にエラーが発生しました: ${file.path}`, e);
 				}
 			}
 		} catch (error) {
@@ -501,7 +488,7 @@ class AddFeedModal extends Modal {
 	}
 
 	onOpen() {
-		const {contentEl} = this;
+		const { contentEl } = this;
 
 		new Setting(contentEl)
 			.setName('フィード名')
@@ -527,7 +514,7 @@ class AddFeedModal extends Modal {
 
 		new Setting(contentEl)
 			.addButton(button => {
-				button.setButtonText('フィードを追加')
+				button.setButtonText(t('addFeed'))
 					.setCta()
 					.onClick(async () => {
 						const name = this.nameInput.value.trim();
@@ -535,16 +522,15 @@ class AddFeedModal extends Modal {
 						const folder = this.folderInput.value.trim();
 
 						if (!name) {
-							new Notice('フィード名は必須です');
+							new Notice(t('feedNameRequired'));
 							return;
 						}
 
 						if (!url) {
-							new Notice('フィードURLは必須です');
+							new Notice(t('feedUrlRequired'));
 							return;
 						}
 
-						// Add the feed
 						this.plugin.settings.feeds.push({
 							name,
 							url,
@@ -553,12 +539,12 @@ class AddFeedModal extends Modal {
 						});
 
 						await this.plugin.saveSettings();
-						new Notice(`フィードを追加しました: ${name}`);
+						new Notice(t('addedFeed', name));
 						this.close();
 					});
 			})
 			.addButton(button => {
-				button.setButtonText('キャンセル')
+				button.setButtonText(t('cancel'))
 					.onClick(() => {
 						this.close();
 					});
@@ -566,7 +552,7 @@ class AddFeedModal extends Modal {
 	}
 
 	onClose() {
-		const {contentEl} = this;
+		const { contentEl } = this;
 		contentEl.empty();
 	}
 }
@@ -580,15 +566,16 @@ class LocalRssSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
-		const {containerEl} = this;
+		const { containerEl } = this;
 		containerEl.empty();
 
-		containerEl.createEl('h2', {text: 'RSSフィードダウンローダー設定'});
-
-		// RSS Output Folder Setting
 		new Setting(containerEl)
-			.setName('RSSフォルダ')
-			.setDesc('RSSの記事が保存されるフォルダ')
+			.setName(t('rssFeedDownloaderSettings'))
+			.setHeading();
+
+		new Setting(containerEl)
+			.setName(t('rssFolder'))
+			.setDesc(t('rssFolderDesc'))
 			.addText(text => text
 				.setPlaceholder('RSS')
 				.setValue(this.plugin.settings.folderPath)
@@ -597,10 +584,9 @@ class LocalRssSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
-		// File name template setting
 		new Setting(containerEl)
-			.setName('ファイル名テンプレート')
-			.setDesc('記事のファイル名のテンプレート。{{title}}と{{published}}変数が使用可能')
+			.setName(t('fileNameTemplate'))
+			.setDesc(t('fileNameTemplateDesc'))
 			.addText(text => text
 				.setPlaceholder('{{title}}')
 				.setValue(this.plugin.settings.fileNameTemplate)
@@ -609,10 +595,9 @@ class LocalRssSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
-		// Content template setting
 		new Setting(containerEl)
-			.setName('コンテンツテンプレート')
-			.setDesc('フロントマター付きの記事コンテンツのテンプレート')
+			.setName(t('contentTemplate'))
+			.setDesc(t('contentTemplateDesc'))
 			.addTextArea(text => {
 				text.setPlaceholder('---\ntitle: {{title}}\n---\n\n{{content}}')
 					.setValue(this.plugin.settings.template)
@@ -622,11 +607,10 @@ class LocalRssSettingTab extends PluginSettingTab {
 					});
 				return text;
 			});
-		
-		// Update interval setting
+
 		new Setting(containerEl)
-			.setName('更新間隔')
-			.setDesc('フィードをチェックする頻度（分単位、0で無効）')
+			.setName(t('updateInterval'))
+			.setDesc(t('updateIntervalDesc'))
 			.addText(text => text
 				.setPlaceholder('60')
 				.setValue(String(this.plugin.settings.updateInterval))
@@ -638,22 +622,20 @@ class LocalRssSettingTab extends PluginSettingTab {
 						this.plugin.startUpdateInterval();
 					}
 				}));
-				
-		// Include images setting
+
 		new Setting(containerEl)
-			.setName('画像を含める')
-			.setDesc('フィード記事から画像URLを含める')
+			.setName(t('includeImages'))
+			.setDesc(t('includeImagesDesc'))
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.includeImages)
 				.onChange(async (value) => {
 					this.plugin.settings.includeImages = value;
 					await this.plugin.saveSettings();
 				}));
-				
-		// Image width setting
+
 		new Setting(containerEl)
-			.setName('画像の幅')
-			.setDesc('コンテンツ内の画像の幅（例：50%、300px）')
+			.setName(t('imageWidth'))
+			.setDesc(t('imageWidthDesc'))
 			.addText(text => text
 				.setPlaceholder('50%')
 				.setValue(this.plugin.settings.imageWidth)
@@ -662,21 +644,19 @@ class LocalRssSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
-		// 自動削除有効/無効の設定
 		new Setting(containerEl)
-			.setName('古い記事を自動削除')
-			.setDesc('一定期間経過した記事を自動的に削除する')
+			.setName(t('autoDeleteOldArticles'))
+			.setDesc(t('autoDeleteOldArticlesDesc'))
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.autoDeleteEnabled)
 				.onChange(async (value) => {
 					this.plugin.settings.autoDeleteEnabled = value;
 					await this.plugin.saveSettings();
 				}));
-		
-		// 自動削除期間の設定
+
 		new Setting(containerEl)
-			.setName('削除までの期間')
-			.setDesc('作成されてから経過した後に記事を削除する')
+			.setName(t('periodBeforeDeletion'))
+			.setDesc(t('periodBeforeDeletionDesc'))
 			.addText(text => text
 				.setPlaceholder('30')
 				.setValue(String(this.plugin.settings.autoDeleteDays))
@@ -687,54 +667,50 @@ class LocalRssSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}
 				}));
-				
-		// 時間単位の設定
+
 		new Setting(containerEl)
-			.setName('時間単位')
-			.setDesc('削除までの期間の単位')
+			.setName(t('timeUnit'))
+			.setDesc(t('timeUnitDesc'))
 			.addDropdown(dropdown => dropdown
-				.addOption('days', '日')
-				.addOption('minutes', '分')
+				.addOption('days', t('days'))
+				.addOption('minutes', t('minutes'))
 				.setValue(this.plugin.settings.autoDeleteTimeUnit)
 				.onChange(async (value) => {
 					this.plugin.settings.autoDeleteTimeUnit = value;
 					await this.plugin.saveSettings();
 				}));
 
-		// 削除基準の設定
 		new Setting(containerEl)
-			.setName('削除基準')
-			.setDesc('記事を削除する基準')
+			.setName(t('deletionCriteria'))
+			.setDesc(t('deletionCriteriaDesc'))
 			.addDropdown(dropdown => dropdown
-				.addOption('publish_date', '公開日')
-				.addOption('saved', '保存日')
+				.addOption('publish_date', t('publishedDate'))
+				.addOption('saved', t('savedDate'))
 				.setValue(this.plugin.settings.autoDeleteBasedOn)
 				.onChange(async (value) => {
 					this.plugin.settings.autoDeleteBasedOn = value;
 					await this.plugin.saveSettings();
 				}));
 
-		// Add a heading for the feeds section
-		containerEl.createEl('h3', {text: 'RSSフィード'});
-		
-		// Display all feeds with edit/delete options
+		new Setting(containerEl)
+			.setName(t('updateRssFeeds'))
+			.setHeading();
+
 		this.plugin.settings.feeds.forEach((feed, index) => {
 			const setting = new Setting(containerEl)
 				.setName(feed.name)
 				.setDesc(feed.url);
-			
-			// Add toggle for enabled/disabled
+
 			setting.addToggle(toggle => toggle
 				.setValue(feed.enabled)
 				.onChange(async (value) => {
 					this.plugin.settings.feeds[index].enabled = value;
 					await this.plugin.saveSettings();
 				}));
-			
-			// Add delete button
+
 			setting.addButton(button => button
 				.setIcon('trash')
-				.setTooltip('削除')
+				.setTooltip(t('cancel'))
 				.onClick(async () => {
 					this.plugin.settings.feeds.splice(index, 1);
 					await this.plugin.saveSettings();
@@ -742,23 +718,21 @@ class LocalRssSettingTab extends PluginSettingTab {
 				}));
 		});
 
-		// Add button to add a new feed
 		new Setting(containerEl)
-			.setName('新しいフィードを追加')
-			.setDesc('ダウンロードする新しいRSSフィードを追加')
+			.setName(t('addNewFeed'))
+			.setDesc(t('addNewFeedDesc'))
 			.addButton(button => button
-				.setButtonText('フィード追加')
+				.setButtonText(t('addFeed'))
 				.setCta()
 				.onClick(() => {
 					new AddFeedModal(this.app, this.plugin).open();
 				}));
-		
-		// Add button to update feeds now
+
 		new Setting(containerEl)
-			.setName('今すぐフィードを更新')
-			.setDesc('有効なすべてのRSSフィードを手動で更新')
+			.setName(t('updateFeedsNow'))
+			.setDesc(t('updateFeedsNowDesc'))
 			.addButton(button => button
-				.setButtonText('今すぐ更新')
+				.setButtonText(t('updateNow'))
 				.setCta()
 				.onClick(() => {
 					this.plugin.updateFeeds();
