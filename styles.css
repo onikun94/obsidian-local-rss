@@ -8,7 +8,7 @@ If your plugin does not need CSS, delete this file.
 */
 
 /* コンテンツテンプレートのテキストエリアスタイル */
-.setting-item textarea {
+.local-rss-settings textarea.local-rss-template-textarea {
   width: 100%;
   min-height: 200px;
   font-family: var(--font-monospace);

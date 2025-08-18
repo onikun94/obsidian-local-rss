@@ -162,7 +162,7 @@ export default class LocalRssPlugin extends Plugin {
 			try {
 				const response = await requestUrl(feed.url);
 				if (response.status !== 200) {
-					new Notice(`フィードの取得に失敗しました: ${feed.name}`);
+					new Notice(t('failedToFetchFeed', feed.name));
 					continue;
 				}
 
@@ -201,7 +201,7 @@ export default class LocalRssPlugin extends Plugin {
 
 				new Notice(t('updatedFeed', feed.name));
 			} catch (error) {
-				console.error(`フィード ${feed.name} の更新中にエラーが発生しました:`, error);
+				console.error(`Error updating feed ${feed.name}:`, error);
 				new Notice(t('errorUpdatingFeed', feed.name));
 			}
 		}
@@ -467,11 +467,11 @@ export default class LocalRssPlugin extends Plugin {
 						}
 					}
 				} catch (e) {
-					console.error(`ファイル処理中にエラーが発生しました: ${file.path}`, e);
+					console.error(`Error processing file: ${file.path}`, e);
 				}
 			}
 		} catch (error) {
-			console.error('古いファイルの削除中にエラーが発生しました:', error);
+			console.error('Error deleting old files:', error);
 		}
 	}
 }
@@ -491,25 +491,25 @@ class AddFeedModal extends Modal {
 		const { contentEl } = this;
 
 		new Setting(contentEl)
-			.setName('フィード名')
+			.setName(t('feedName'))
 			.addText(text => {
 				this.nameInput = text.inputEl;
-				text.setPlaceholder('マイフィード');
+				text.setPlaceholder('My Feed');
 			});
 
 		new Setting(contentEl)
-			.setName('フィードURL')
+			.setName(t('feedUrl'))
 			.addText(text => {
 				this.urlInput = text.inputEl;
 				text.setPlaceholder('https://example.com/feed.xml');
 			});
 
 		new Setting(contentEl)
-			.setName('カスタムフォルダ名（オプション）')
-			.setDesc('RSSフォルダ内のサブフォルダ名')
+			.setName(t('customFolderName'))
+			.setDesc(t('customFolderNameDesc'))
 			.addText(text => {
 				this.folderInput = text.inputEl;
-				text.setPlaceholder('空白の場合はフィード名を使用');
+				text.setPlaceholder(t('customFolderPlaceholder'));
 			});
 
 		new Setting(contentEl)
@@ -568,10 +568,7 @@ class LocalRssSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName(t('rssFeedDownloaderSettings'))
-			.setHeading();
+		containerEl.addClass('local-rss-settings');
 
 		new Setting(containerEl)
 			.setName(t('rssFolder'))
@@ -605,6 +602,7 @@ class LocalRssSettingTab extends PluginSettingTab {
 						this.plugin.settings.template = value;
 						await this.plugin.saveSettings();
 					});
+				text.inputEl.addClass('local-rss-template-textarea');
 				return text;
 			});
 
