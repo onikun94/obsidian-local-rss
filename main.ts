@@ -568,10 +568,7 @@ class LocalRssSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName(t('rssFeedDownloaderSettings'))
-			.setHeading();
+		containerEl.addClass('local-rss-settings');
 
 		new Setting(containerEl)
 			.setName(t('rssFolder'))
@@ -605,6 +602,7 @@ class LocalRssSettingTab extends PluginSettingTab {
 						this.plugin.settings.template = value;
 						await this.plugin.saveSettings();
 					});
+				text.inputEl.addClass('local-rss-template-textarea');
 				return text;
 			});
 
