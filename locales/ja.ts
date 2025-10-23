@@ -27,6 +27,8 @@ const ja: Partial<typeof en> = {
 	updateIntervalDesc: 'フィードをチェックする頻度（分単位、0で無効）',
 	includeImages: '画像を含める',
 	includeImagesDesc: 'フィード記事から画像URLを含める',
+	fetchImageFromLink: 'リンク先から画像を取得',
+	fetchImageFromLinkDesc: 'RSSフィードに画像がない場合、記事のリンク先からOGP画像を取得します（処理に時間がかかります）',
 	imageWidth: '画像の幅',
 	imageWidthDesc: 'コンテンツ内の画像の幅（例：50%、300px）',
 	autoDeleteOldArticles: '古い記事を自動削除',

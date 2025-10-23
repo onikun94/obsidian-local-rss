@@ -25,6 +25,8 @@ export default {
 	updateIntervalDesc: 'How often to check feeds (in minutes, 0 to disable)',
 	includeImages: 'Include images',
 	includeImagesDesc: 'Include image URLs from feed articles',
+	fetchImageFromLink: 'Fetch image from link',
+	fetchImageFromLinkDesc: 'If RSS feed has no image, fetch OGP image from article link (may take longer)',
 	imageWidth: 'Image width',
 	imageWidthDesc: 'Width of images in content (e.g. 50%, 300px)',
 	autoDeleteOldArticles: 'Auto-delete old articles',
