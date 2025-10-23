@@ -11,6 +11,7 @@ interface LocalRssSettings {
 	updateInterval: number;
 	lastUpdateTime: number;
 	includeImages: boolean;
+	fetchImageFromLink: boolean;
 	dateFormat: string;
 	imageWidth: string;
 	autoDeleteEnabled: boolean;
@@ -76,11 +77,12 @@ interface RssItem {
 const DEFAULT_SETTINGS: LocalRssSettings = {
 	feeds: [],
 	folderPath: 'RSS',
-	template: '---\ntitle: {{title}}\nlink: {{link}}\nauthor: {{author}}\npublish_date: {{publishedTime}}\nsaved_date: {{savedTime}}\ntags: {{#tags}}\n---\n\n{{#image}}\n<img src="{{image}}" width="{{imageWidth}}" />\n\n{{/image}}{{content}}',
+	template: '---\ntitle: {{title}}\nlink: {{link}}\nauthor: {{author}}\npublish_date: {{publishedTime}}\nsaved_date: {{savedTime}}\nimage: {{imageUrl}}\ndescription: {{descriptionShort}}\ntags: {{#tags}}\n---\n\n{{#image}}\n<img src="{{image}}" width="{{imageWidth}}" />\n\n{{/image}}{{content}}',
 	fileNameTemplate: '{{title}}',
 	updateInterval: 60,
 	lastUpdateTime: 0,
 	includeImages: true,
+	fetchImageFromLink: false,
 	dateFormat: 'YYYY-MM-DD HH:mm:ss',
 	imageWidth: '50%',
 	autoDeleteEnabled: false,
@@ -235,6 +237,11 @@ export default class LocalRssPlugin extends Plugin {
 
 		if (this.settings.includeImages) {
 			rssItem.imageUrl = this.extractImageUrl(item);
+
+			// RSSフィードに画像がない場合、リンク先から取得
+			if (!rssItem.imageUrl && this.settings.fetchImageFromLink && rssItem.link) {
+				rssItem.imageUrl = await this.fetchImageFromUrl(rssItem.link);
+			}
 		}
 
 		let fileName = this.settings.fileNameTemplate
@@ -258,6 +265,12 @@ export default class LocalRssPlugin extends Plugin {
 		const escapedTitle = this.escapeYamlValue(rssItem.title);
 		const escapedAuthor = this.escapeYamlValue(rssItem.author);
 
+		// descriptionの最初の50文字を取得（改行を除去）
+		const descriptionCleaned = rssItem.description.replace(/\r?\n/g, ' ').trim();
+		const descriptionShort = descriptionCleaned.substring(0, 50) + (descriptionCleaned.length > 50 ? '...' : '');
+		const escapedDescription = this.escapeYamlValue(descriptionCleaned);
+		const escapedDescriptionShort = this.escapeYamlValue(descriptionShort);
+
 		let processedContent = rssItem.content;
 		if (this.settings.imageWidth && this.settings.imageWidth !== '100%') {
 			processedContent = this.resizeImagesInContent(processedContent);
@@ -269,7 +282,10 @@ export default class LocalRssPlugin extends Plugin {
 			.replace(/{{author}}/g, escapedAuthor)
 			.replace(/{{publishedTime}}/g, fullDateTime)
 			.replace(/{{savedTime}}/g, fullSavedDateTime)
+			.replace(/{{imageUrl}}/g, rssItem.imageUrl)
 			.replace(/{{imageWidth}}/g, this.settings.imageWidth)
+			.replace(/{{description}}/g, escapedDescription)
+			.replace(/{{descriptionShort}}/g, escapedDescriptionShort)
 			.replace(/{{#tags}}/g, rssItem.categories.map(c => `#${c}`).join(' '))
 			.replace(/{{#image}}\n([^]*?)\n{{\/image}}/g, (match, p1) => {
 				if (rssItem.imageUrl) {
@@ -305,6 +321,11 @@ export default class LocalRssPlugin extends Plugin {
 
 		if (this.settings.includeImages) {
 			rssItem.imageUrl = this.extractImageUrl(item);
+
+			// RSSフィードに画像がない場合、リンク先から取得
+			if (!rssItem.imageUrl && this.settings.fetchImageFromLink && rssItem.link) {
+				rssItem.imageUrl = await this.fetchImageFromUrl(rssItem.link);
+			}
 		}
 
 		let fileName = this.settings.fileNameTemplate
@@ -328,6 +349,12 @@ export default class LocalRssPlugin extends Plugin {
 		const escapedTitle = this.escapeYamlValue(rssItem.title);
 		const escapedAuthor = this.escapeYamlValue(rssItem.author);
 
+		// descriptionの最初の50文字を取得（改行を除去）
+		const descriptionCleaned = rssItem.description.replace(/\r?\n/g, ' ').trim();
+		const descriptionShort = descriptionCleaned.substring(0, 50) + (descriptionCleaned.length > 50 ? '...' : '');
+		const escapedDescription = this.escapeYamlValue(descriptionCleaned);
+		const escapedDescriptionShort = this.escapeYamlValue(descriptionShort);
+
 		let processedContent = rssItem.content;
 		if (this.settings.imageWidth && this.settings.imageWidth !== '100%') {
 			processedContent = this.resizeImagesInContent(processedContent);
@@ -339,7 +366,10 @@ export default class LocalRssPlugin extends Plugin {
 			.replace(/{{author}}/g, escapedAuthor)
 			.replace(/{{publishedTime}}/g, fullDateTime)
 			.replace(/{{savedTime}}/g, fullSavedDateTime)
+			.replace(/{{imageUrl}}/g, rssItem.imageUrl)
 			.replace(/{{imageWidth}}/g, this.settings.imageWidth)
+			.replace(/{{description}}/g, escapedDescription)
+			.replace(/{{descriptionShort}}/g, escapedDescriptionShort)
 			.replace(/{{#tags}}/g, rssItem.categories.map(c => `#${c}`).join(' '))
 			.replace(/{{#image}}\n([^]*?)\n{{\/image}}/g, (match, p1) => {
 				if (rssItem.imageUrl) {
@@ -367,11 +397,14 @@ export default class LocalRssPlugin extends Plugin {
 	}
 
 	escapeYamlValue(value: string): string {
-		if (YAML_SPECIAL_CHARS.test(value)) {
-			const escapedValue = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+		// 改行文字を空白に置き換える
+		const valueWithoutNewlines = value.replace(/\r?\n/g, ' ').trim();
+
+		if (YAML_SPECIAL_CHARS.test(valueWithoutNewlines)) {
+			const escapedValue = valueWithoutNewlines.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 			return `"${escapedValue}"`;
 		}
-		return value;
+		return valueWithoutNewlines;
 	}
 
 	formatDate(date: Date): string {
@@ -401,8 +434,21 @@ export default class LocalRssPlugin extends Plugin {
 				return rssItem['media:thumbnail'].$.url;
 			}
 
-			if (rssItem.enclosure && rssItem.enclosure.$.type && rssItem.enclosure.$.type.startsWith('image/')) {
-				return rssItem.enclosure.$.url;
+			// enclosureタグからURLを取得（typeに関係なく）
+			// ZennなどのフィードではOGP画像がenclosureで提供されている
+			if (rssItem.enclosure && rssItem.enclosure.$.url) {
+				const enclosureUrl = rssItem.enclosure.$.url;
+				// URLが画像っぽい拡張子を持っているか、画像配信サービスのURLかチェック
+				if (enclosureUrl.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i) ||
+				    enclosureUrl.includes('cloudinary.com') ||
+				    enclosureUrl.includes('imgur.com') ||
+				    enclosureUrl.includes('googleusercontent.com')) {
+					return enclosureUrl;
+				}
+				// typeがimage/で始まる場合も取得
+				if (rssItem.enclosure.$.type && rssItem.enclosure.$.type.startsWith('image/')) {
+					return enclosureUrl;
+				}
 			}
 		}
 
@@ -421,6 +467,46 @@ export default class LocalRssPlugin extends Plugin {
 		}
 
 		return '';
+	}
+
+	async fetchImageFromUrl(url: string): Promise<string> {
+		try {
+			const response = await requestUrl(url);
+			if (response.status !== 200) {
+				return '';
+			}
+
+			const html = response.text;
+
+			// OGP画像を抽出
+			// <meta property="og:image" content="..." />
+			const ogImageMatch1 = /<meta\s+property=["']og:image["']\s+content=["'](.*?)["']/i.exec(html);
+			if (ogImageMatch1 && ogImageMatch1[1]) {
+				return ogImageMatch1[1];
+			}
+
+			// <meta content="..." property="og:image" />
+			const ogImageMatch2 = /<meta\s+content=["'](.*?)["']\s+property=["']og:image["']/i.exec(html);
+			if (ogImageMatch2 && ogImageMatch2[1]) {
+				return ogImageMatch2[1];
+			}
+
+			// twitter:image も試す
+			const twitterImageMatch1 = /<meta\s+name=["']twitter:image["']\s+content=["'](.*?)["']/i.exec(html);
+			if (twitterImageMatch1 && twitterImageMatch1[1]) {
+				return twitterImageMatch1[1];
+			}
+
+			const twitterImageMatch2 = /<meta\s+content=["'](.*?)["']\s+name=["']twitter:image["']/i.exec(html);
+			if (twitterImageMatch2 && twitterImageMatch2[1]) {
+				return twitterImageMatch2[1];
+			}
+
+			return '';
+		} catch (error) {
+			console.error(`Error fetching image from ${url}:`, error);
+			return '';
+		}
 	}
 
 
@@ -628,6 +714,16 @@ class LocalRssSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.includeImages)
 				.onChange(async (value) => {
 					this.plugin.settings.includeImages = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName(t('fetchImageFromLink'))
+			.setDesc(t('fetchImageFromLinkDesc'))
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.fetchImageFromLink)
+				.onChange(async (value) => {
+					this.plugin.settings.fetchImageFromLink = value;
 					await this.plugin.saveSettings();
 				}));
 
