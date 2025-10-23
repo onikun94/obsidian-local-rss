@@ -77,7 +77,7 @@ interface RssItem {
 const DEFAULT_SETTINGS: LocalRssSettings = {
 	feeds: [],
 	folderPath: 'RSS',
-	template: '---\ntitle: {{title}}\nlink: {{link}}\nauthor: {{author}}\npublish_date: {{publishedTime}}\nsaved_date: {{savedTime}}\nimage: {{imageUrl}}\ndescription: {{descriptionShort}}\ntags: {{#tags}}\n---\n\n{{#image}}\n<img src="{{image}}" width="{{imageWidth}}" />\n\n{{/image}}{{content}}',
+	template: '---\ntitle: {{title}}\nlink: {{link}}\nauthor: {{author}}\npublish_date: {{publishedTime}}\nsaved_date: {{savedTime}}\nimage: {{image}}\ntags: {{#tags}}\n---\n\n![image]({{image}})\n\n{{content}}',
 	fileNameTemplate: '{{title}}',
 	updateInterval: 60,
 	lastUpdateTime: 0,
@@ -282,17 +282,10 @@ export default class LocalRssPlugin extends Plugin {
 			.replace(/{{author}}/g, escapedAuthor)
 			.replace(/{{publishedTime}}/g, fullDateTime)
 			.replace(/{{savedTime}}/g, fullSavedDateTime)
-			.replace(/{{imageUrl}}/g, rssItem.imageUrl)
-			.replace(/{{imageWidth}}/g, this.settings.imageWidth)
+			.replace(/{{image}}/g, rssItem.imageUrl)
 			.replace(/{{description}}/g, escapedDescription)
 			.replace(/{{descriptionShort}}/g, escapedDescriptionShort)
 			.replace(/{{#tags}}/g, rssItem.categories.map(c => `#${c}`).join(' '))
-			.replace(/{{#image}}\n([^]*?)\n{{\/image}}/g, (match, p1) => {
-				if (rssItem.imageUrl) {
-					return p1.replace(/{{image}}/g, rssItem.imageUrl);
-				}
-				return '';
-			})
 			.replace(/{{content}}/g, processedContent);
 
 		await this.app.vault.create(fileName, content);
@@ -366,17 +359,10 @@ export default class LocalRssPlugin extends Plugin {
 			.replace(/{{author}}/g, escapedAuthor)
 			.replace(/{{publishedTime}}/g, fullDateTime)
 			.replace(/{{savedTime}}/g, fullSavedDateTime)
-			.replace(/{{imageUrl}}/g, rssItem.imageUrl)
-			.replace(/{{imageWidth}}/g, this.settings.imageWidth)
+			.replace(/{{image}}/g, rssItem.imageUrl)
 			.replace(/{{description}}/g, escapedDescription)
 			.replace(/{{descriptionShort}}/g, escapedDescriptionShort)
 			.replace(/{{#tags}}/g, rssItem.categories.map(c => `#${c}`).join(' '))
-			.replace(/{{#image}}\n([^]*?)\n{{\/image}}/g, (match, p1) => {
-				if (rssItem.imageUrl) {
-					return p1.replace(/{{image}}/g, rssItem.imageUrl);
-				}
-				return '';
-			})
 			.replace(/{{content}}/g, processedContent);
 
 		await this.app.vault.create(fileName, content);
@@ -678,7 +664,7 @@ class LocalRssSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
-		new Setting(containerEl)
+		const templateSetting = new Setting(containerEl)
 			.setName(t('contentTemplate'))
 			.setDesc(t('contentTemplateDesc'))
 			.addTextArea(text => {
@@ -691,6 +677,29 @@ class LocalRssSettingTab extends PluginSettingTab {
 				text.inputEl.addClass('local-rss-template-textarea');
 				return text;
 			});
+		templateSetting.settingEl.addClass('local-rss-template-setting');
+
+		// Add available variables list to the control element
+		const variablesEl = templateSetting.controlEl.createDiv('local-rss-variables');
+		variablesEl.createEl('div', { text: t('availableVariables'), cls: 'local-rss-variables-title' });
+		const variablesList = variablesEl.createEl('div', { cls: 'local-rss-variables-list' });
+		const variables = [
+			{ var: '{{title}}', desc: t('varTitle') },
+			{ var: '{{link}}', desc: t('varLink') },
+			{ var: '{{author}}', desc: t('varAuthor') },
+			{ var: '{{publishedTime}}', desc: t('varPublishedTime') },
+			{ var: '{{savedTime}}', desc: t('varSavedTime') },
+			{ var: '{{image}}', desc: t('varImage') },
+			{ var: '{{description}}', desc: t('varDescription') },
+			{ var: '{{descriptionShort}}', desc: t('varDescriptionShort') },
+			{ var: '{{content}}', desc: t('varContent') },
+			{ var: '{{#tags}}', desc: t('varTags') }
+		];
+		variables.forEach(v => {
+			const item = variablesList.createEl('div', { cls: 'local-rss-variable-item' });
+			item.createEl('code', { text: v.var });
+			item.createEl('span', { text: ` - ${v.desc}`, cls: 'local-rss-variable-desc' });
+		});
 
 		new Setting(containerEl)
 			.setName(t('updateInterval'))
