@@ -4,7 +4,7 @@
 	"version": "0.1.9",
 	"minAppVersion": "0.15.0",
 	"description": "Download RSS feed articles to local files.",
-	"author": "Local RSS Developer",
+	"author": "onikun94",
 	"authorUrl": "https://github.com/onikun94",
 	"fundingUrl": "https://ko-fi.com/shotovim",
 	"isDesktopOnly": false
