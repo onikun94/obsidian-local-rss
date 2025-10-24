@@ -366,17 +366,23 @@ export default class LocalRssPlugin extends Plugin {
 	}
 
 	resizeImagesInContent(content: string): string {
-		// Since we're dealing with RSS content that will be saved as markdown,
-		// we'll use regex to add width attributes to img tags
-		// This avoids using innerHTML while still processing the content
+		if (!content) return content;
 
-		// Regular expression to match img tags without width attribute
-		const imgRegex = /<img\s+(?![^>]*\swidth=)(?![^>]*\sstyle=)([^>]*?)>/gi;
+		// Use DOM API instead of string manipulation (CLAUDE-OB.md compliance)
+		const fragment = sanitizeHTMLToDom(content);
+		const div = createDiv();
+		div.appendChild(fragment);
 
-		// Replace img tags to add width attribute
-		return content.replace(imgRegex, (match, attributes) => {
-			return `<img ${attributes} width="${this.settings.imageWidth}">`;
+		// Find all img elements and add width attribute
+		const images = div.querySelectorAll('img');
+		images.forEach((img) => {
+			// Only add width if it doesn't already have width or style attribute
+			if (!img.hasAttribute('width') && !img.hasAttribute('style')) {
+				img.setAttribute('width', this.settings.imageWidth);
+			}
 		});
+
+		return div.innerHTML;
 	}
 
 	private normalizeCategories(categoryField: any): string[] {
