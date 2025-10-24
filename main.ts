@@ -1,6 +1,7 @@
 import { App, Modal, Notice, Plugin, PluginSettingTab, Setting, normalizePath, requestUrl, sanitizeHTMLToDom, TFile, TFolder } from 'obsidian';
 import * as xml2js from 'xml2js';
 import { t } from './localization';
+import { stripHtml, htmlToMarkdown } from './src/utils/htmlProcessor';
 
 
 interface LocalRssSettings {
@@ -217,7 +218,7 @@ export default class LocalRssPlugin extends Plugin {
 	async processRssItem(item: RssFeedItem, feed: Feed, folderPath: string) {
 		const rssItem: RssItem = {
 			title: item.title || 'Untitled',
-			description: item.description || '',
+			description: stripHtml(item.description || '', 200),
 			content: item['content:encoded'] || item.description || '',
 			link: item.link || '',
 			pubDate: item.pubDate || item.published || new Date().toISOString(),
@@ -269,6 +270,8 @@ export default class LocalRssPlugin extends Plugin {
 		if (this.settings.imageWidth && this.settings.imageWidth !== '100%') {
 			processedContent = this.resizeImagesInContent(processedContent);
 		}
+		// Convert HTML to Markdown
+		processedContent = htmlToMarkdown(processedContent);
 
 		const template = this.prepareTemplate(this.settings.template, rssItem);
 
@@ -290,7 +293,7 @@ export default class LocalRssPlugin extends Plugin {
 	async processAtomItem(item: AtomFeedItem, feed: AtomFeed, folderPath: string) {
 		const rssItem: RssItem = {
 			title: item.title || 'Untitled',
-			description: item.summary || '',
+			description: stripHtml(item.summary || '', 200),
 			content: item.content || item.summary || '',
 			link: item.link?.href || '',
 			pubDate: item.published || item.updated || new Date().toISOString(),
@@ -342,6 +345,8 @@ export default class LocalRssPlugin extends Plugin {
 		if (this.settings.imageWidth && this.settings.imageWidth !== '100%') {
 			processedContent = this.resizeImagesInContent(processedContent);
 		}
+		// Convert HTML to Markdown
+		processedContent = htmlToMarkdown(processedContent);
 
 		const template = this.prepareTemplate(this.settings.template, rssItem);
 
