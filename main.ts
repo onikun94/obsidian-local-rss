@@ -227,13 +227,7 @@ export default class LocalRssPlugin extends Plugin {
 			savedDate: new Date().toISOString()
 		};
 
-		if (item.category) {
-			if (Array.isArray(item.category)) {
-				rssItem.categories = item.category;
-			} else {
-				rssItem.categories = [item.category];
-			}
-		}
+		rssItem.categories = this.normalizeCategories(item.category);
 
 		if (this.settings.includeImages) {
 			rssItem.imageUrl = this.extractImageUrl(item);
@@ -276,7 +270,9 @@ export default class LocalRssPlugin extends Plugin {
 			processedContent = this.resizeImagesInContent(processedContent);
 		}
 
-		const content = this.settings.template
+		const template = this.prepareTemplate(this.settings.template, rssItem);
+
+		const content = template
 			.replace(/{{title}}/g, escapedTitle)
 			.replace(/{{link}}/g, rssItem.link)
 			.replace(/{{author}}/g, escapedAuthor)
@@ -304,13 +300,7 @@ export default class LocalRssPlugin extends Plugin {
 			savedDate: new Date().toISOString()
 		};
 
-		if (item.category) {
-			if (Array.isArray(item.category)) {
-				rssItem.categories = item.category.map((c: AtomCategory) => c.term || '');
-			} else {
-				rssItem.categories = [item.category.term || ''];
-			}
-		}
+		rssItem.categories = this.normalizeCategories(item.category);
 
 		if (this.settings.includeImages) {
 			rssItem.imageUrl = this.extractImageUrl(item);
@@ -353,7 +343,9 @@ export default class LocalRssPlugin extends Plugin {
 			processedContent = this.resizeImagesInContent(processedContent);
 		}
 
-		const content = this.settings.template
+		const template = this.prepareTemplate(this.settings.template, rssItem);
+
+		const content = template
 			.replace(/{{title}}/g, escapedTitle)
 			.replace(/{{link}}/g, rssItem.link)
 			.replace(/{{author}}/g, escapedAuthor)
@@ -380,6 +372,51 @@ export default class LocalRssPlugin extends Plugin {
 		return content.replace(imgRegex, (match, attributes) => {
 			return `<img ${attributes} width="${this.settings.imageWidth}">`;
 		});
+	}
+
+	private normalizeCategories(categoryField: any): string[] {
+		if (!categoryField) {
+			return [];
+		}
+
+		const categories = Array.isArray(categoryField) ? categoryField : [categoryField];
+		return categories
+			.map((category: any) => this.extractCategoryText(category))
+			.filter((category: string): category is string => category.length > 0);
+	}
+
+	private extractCategoryText(category: any): string {
+		if (category == null) {
+			return '';
+		}
+
+		if (typeof category === 'string') {
+			return category.trim();
+		}
+
+		if (typeof category === 'object') {
+			const categoryRecord = category as Record<string, unknown>;
+
+			if (typeof categoryRecord['_'] === 'string') {
+				return (categoryRecord['_'] as string).trim();
+			}
+
+			if (typeof categoryRecord['term'] === 'string') {
+				return (categoryRecord['term'] as string).trim();
+			}
+		}
+
+		return '';
+	}
+
+	private prepareTemplate(template: string, rssItem: RssItem): string {
+		let preparedTemplate = template;
+
+		if (!rssItem.imageUrl) {
+			preparedTemplate = preparedTemplate.replace(/^.*{{image}}.*\n?/gm, '');
+		}
+
+		return preparedTemplate;
 	}
 
 	escapeYamlValue(value: string): string {
