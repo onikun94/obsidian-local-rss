@@ -37,13 +37,13 @@ interface RssFeedItem {
 }
 
 interface AtomFeedItem {
-	title?: string;
-	summary?: string;
-	content?: string;
-	link?: { href: string };
+	title?: string | { _: string };
+	summary?: string | { _: string };
+	content?: string | { _: string };
+	link?: { href: string } | { href: string }[];
 	published?: string;
 	updated?: string;
-	author?: { name: string };
+	author?: { name: string } | { name: string }[];
 	category?: AtomCategory | AtomCategory[];
 }
 
@@ -52,7 +52,7 @@ interface AtomCategory {
 }
 
 interface AtomFeed {
-	title?: string;
+	title?: string | { _: string };
 	entry?: AtomFeedItem | AtomFeedItem[];
 }
 
@@ -275,7 +275,7 @@ export default class LocalRssPlugin extends Plugin {
 
 		const template = this.prepareTemplate(this.settings.template, rssItem);
 
-		const content = template
+		const fileContent = template
 			.replace(/{{title}}/g, escapedTitle)
 			.replace(/{{link}}/g, rssItem.link)
 			.replace(/{{author}}/g, escapedAuthor)
@@ -287,17 +287,50 @@ export default class LocalRssPlugin extends Plugin {
 			.replace(/{{#tags}}/g, rssItem.categories.map(c => `#${c}`).join(' '))
 			.replace(/{{content}}/g, processedContent);
 
-		await this.app.vault.create(fileName, content);
+		await this.app.vault.create(fileName, fileContent);
+	}
+
+	// ヘルパー関数: xml2jsがパースした値を文字列に正規化
+	private normalizeXmlValue(value: string | { _: string } | undefined): string {
+		if (!value) return '';
+		if (typeof value === 'string') return value;
+		if (typeof value === 'object' && '_' in value) return value._;
+		return '';
+	}
+
+	// ヘルパー関数: linkを正規化
+	private normalizeAtomLink(link: { href: string } | { href: string }[] | undefined): string {
+		if (!link) return '';
+		if (Array.isArray(link)) {
+			// 配列の場合は最初のリンクを返す
+			return link[0]?.href || '';
+		}
+		return link.href || '';
+	}
+
+	// ヘルパー関数: authorを正規化
+	private normalizeAtomAuthor(author: { name: string } | { name: string }[] | undefined, feedTitle?: string): string {
+		if (!author) return feedTitle || '';
+		if (Array.isArray(author)) {
+			return author[0]?.name || feedTitle || '';
+		}
+		return author.name || feedTitle || '';
 	}
 
 	async processAtomItem(item: AtomFeedItem, feed: AtomFeed, folderPath: string) {
+		const title = this.normalizeXmlValue(item.title);
+		const summary = this.normalizeXmlValue(item.summary);
+		const content = this.normalizeXmlValue(item.content);
+		const link = this.normalizeAtomLink(item.link);
+		const author = this.normalizeAtomAuthor(item.author, this.normalizeXmlValue(feed.title));
+
 		const rssItem: RssItem = {
-			title: item.title || 'Untitled',
-			description: stripHtml(item.summary || '', 200),
-			content: item.content || item.summary || '',
-			link: item.link?.href || '',
+			title: title || 'Untitled',
+			description: stripHtml(summary, 200),
+			content: content || summary,
+			link: link,
 			pubDate: item.published || item.updated || new Date().toISOString(),
-			author: item.author?.name || feed.title || '',
+			author: author,
 			categories: [],
 			imageUrl: '',
 			savedDate: new Date().toISOString()
@@ -350,7 +383,7 @@ export default class LocalRssPlugin extends Plugin {
 
 		const template = this.prepareTemplate(this.settings.template, rssItem);
 
-		const content = template
+		const fileContent = template
 			.replace(/{{title}}/g, escapedTitle)
 			.replace(/{{link}}/g, rssItem.link)
 			.replace(/{{author}}/g, escapedAuthor)
@@ -362,11 +395,17 @@ export default class LocalRssPlugin extends Plugin {
 			.replace(/{{#tags}}/g, rssItem.categories.map(c => `#${c}`).join(' '))
 			.replace(/{{content}}/g, processedContent);
 
-		await this.app.vault.create(fileName, content);
+		await this.app.vault.create(fileName, fileContent);
 	}
 
 	resizeImagesInContent(content: string): string {
 		if (!content) return content;
+
+		// 文字列でない場合はそのまま返す（xml2jsがオブジェクトを返す場合の対策）
+		if (typeof content !== 'string') {
+			console.warn('resizeImagesInContent: received non-string input', content);
+			return '';
+		}
 
 		// Use DOM API instead of string manipulation (CLAUDE-OB.md compliance)
 		const fragment = sanitizeHTMLToDom(content);
@@ -490,10 +529,12 @@ export default class LocalRssPlugin extends Plugin {
 		if ('content:encoded' in item) {
 			content = (item as RssFeedItem)['content:encoded'] || (item as RssFeedItem).description || '';
 		} else if ('content' in item) {
-			content = (item as AtomFeedItem).content || (item as AtomFeedItem).summary || '';
+			const atomItem = item as AtomFeedItem;
+			// xml2jsがオブジェクトとして返す場合に対応
+			content = this.normalizeXmlValue(atomItem.content) || this.normalizeXmlValue(atomItem.summary) || '';
 		}
 
-		if (content) {
+		if (content && typeof content === 'string') {
 			const match = /<img.*?src=["'](.*?)["']/.exec(content);
 			if (match && match[1]) {
 				return match[1];
