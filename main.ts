@@ -424,18 +424,18 @@ export default class LocalRssPlugin extends Plugin {
 		return div.innerHTML;
 	}
 
-	private normalizeCategories(categoryField: any): string[] {
+	private normalizeCategories(categoryField: unknown): string[] {
 		if (!categoryField) {
 			return [];
 		}
 
 		const categories = Array.isArray(categoryField) ? categoryField : [categoryField];
 		return categories
-			.map((category: any) => this.extractCategoryText(category))
+			.map((category: unknown) => this.extractCategoryText(category))
 			.filter((category: string): category is string => category.length > 0);
 	}
 
-	private extractCategoryText(category: any): string {
+	private extractCategoryText(category: unknown): string {
 		if (category == null) {
 			return '';
 		}
