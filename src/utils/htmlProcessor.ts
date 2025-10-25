@@ -25,6 +25,12 @@ turndownService.addRule('removeScripts', {
 export function stripHtml(html: string, maxLength?: number): string {
 	if (!html) return '';
 
+	// 文字列でない場合は空文字列を返す（xml2jsがオブジェクトを返す場合の対策）
+	if (typeof html !== 'string') {
+		console.warn('stripHtml: received non-string input', html);
+		return '';
+	}
+
 	// ブラウザネイティブのDOMParserを使用
 	const parser = new DOMParser();
 	const doc = parser.parseFromString(html, 'text/html');
@@ -47,6 +53,12 @@ export function stripHtml(html: string, maxLength?: number): string {
  */
 export function htmlToMarkdown(html: string): string {
 	if (!html) return '';
+
+	// 文字列でない場合は空文字列を返す（xml2jsがオブジェクトを返す場合の対策）
+	if (typeof html !== 'string') {
+		console.warn('htmlToMarkdown: received non-string input', html);
+		return '';
+	}
 
 	// scriptタグなどを事前に除去
 	const cleanHtml = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
