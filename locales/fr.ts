@@ -16,8 +16,8 @@ export default {
 
 	// Settings
 	rssFolder: "Dossier RSS",
-	rssFolderDesc: "Dossier où les articles RSS seront enregistrés",
-	fileNameTemplate: "File name template",
+	rssFolderDesc: "Dossier où les articles seront sauvegardés",
+	fileNameTemplate: "Modèle de nom de fichier",
 	fileNameTemplateDesc:
 		"Modèle pour les noms des articles. Les variables {{title}} (titre) et {{published}} (date de publication) sont disponibles",
 	contentTemplate: "Modèle de contenu",
@@ -50,9 +50,9 @@ export default {
 	periodBeforeDeletionDesc:
 		"Supprime les articles une fois que cette durée s'est écoulée depuis la création",
 	timeUnit: "Unité temporelle",
-	timeUnitDesc: "Unité pour la période avant suppression",
-	deletionCriteria: "Critères de suppression",
-	deletionCriteriaDesc: "Critères pour supprimer les articles",
+	timeUnitDesc: "Unité pour le temps avant suppression",
+	deletionCriteria: "Critère de suppression",
+	deletionCriteriaDesc: "Critère déterminant les articles à supprimer",
 	addNewFeed: "Ajouter un nouveau flux",
 	addNewFeedDesc: "Ajouter un nouveau flux RSS à télécharger",
 	updateFeedsNow: "Mettre à jour les flux maintenant",
