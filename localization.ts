@@ -1,24 +1,33 @@
-import { moment } from 'obsidian';
-import en from './locales/en';
-import ja from './locales/ja';
+import { moment } from "obsidian";
+import en from "./locales/en";
+import ja from "./locales/ja";
+import fr from "./locales/fr";
 
 const localeMap: { [key: string]: Partial<typeof en> } = {
-    en,
-    ja,
-    'ja-JP': ja
+	en,
+	ja,
+	"ja-JP": ja,
+	fr,
+	"fr-FR": fr,
 };
 
-export function t(localizationId: keyof typeof en, ...inserts: string[]): string {
-    // Obsidianの言語設定を取得（localStorageからも試す）
-    const lang = moment.locale() || window.localStorage.getItem('language') || 'en';
-    const userLocale = localeMap[lang] || localeMap[lang.split('-')[0]] || localeMap['en'];
-    let localeStr = userLocale?.[localizationId] ?? en[localizationId] ?? localizationId;
-    
-    // Replace placeholders with inserts
-    localeStr = localeStr.replace(/%(\d+)/g, (_: string, indexStr: string) => {
-        const index = parseInt(indexStr, 10);
-        return inserts[index] ?? '';
-    });
+export function t(
+	localizationId: keyof typeof en,
+	...inserts: string[]
+): string {
+	// Obsidianの言語設定を取得（localStorageからも試す）
+	const lang =
+		moment.locale() || window.localStorage.getItem("language") || "en";
+	const userLocale =
+		localeMap[lang] || localeMap[lang.split("-")[0]] || localeMap["en"];
+	let localeStr =
+		userLocale?.[localizationId] ?? en[localizationId] ?? localizationId;
 
-    return localeStr;
+	// Replace placeholders with inserts
+	localeStr = localeStr.replace(/%(\d+)/g, (_: string, indexStr: string) => {
+		const index = parseInt(indexStr, 10);
+		return inserts[index] ?? "";
+	});
+
+	return localeStr;
 }
