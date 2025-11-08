@@ -31,9 +31,9 @@ interface RssFeedItem {
 	author?: string;
 	'dc:creator'?: string;
 	category?: string | string[];
-	'media:content'?: { $: { url: string } };
-	'media:thumbnail'?: { $: { url: string } };
-	enclosure?: { $: { type: string; url: string } };
+	'media:content'?: string | { $: { url: string } };
+	'media:thumbnail'?: string | { $: { url: string } };
+	enclosure?: string | { $: { type: string; url: string } };
 }
 
 interface AtomFeedItem {
@@ -499,28 +499,44 @@ export default class LocalRssPlugin extends Plugin {
 		if ('media:content' in item || 'media:thumbnail' in item || 'enclosure' in item) {
 			const rssItem = item as RssFeedItem;
 
-			if (rssItem['media:content'] && rssItem['media:content'].$.url) {
-				return rssItem['media:content'].$.url;
-			}
-
-			if (rssItem['media:thumbnail'] && rssItem['media:thumbnail'].$.url) {
-				return rssItem['media:thumbnail'].$.url;
-			}
-
-			// enclosureタグからURLを取得（typeに関係なく）
-			// ZennなどのフィードではOGP画像がenclosureで提供されている
-			if (rssItem.enclosure && rssItem.enclosure.$.url) {
-				const enclosureUrl = rssItem.enclosure.$.url;
-				// URLが画像っぽい拡張子を持っているか、画像配信サービスのURLかチェック
-				if (enclosureUrl.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i) ||
-				    enclosureUrl.includes('cloudinary.com') ||
-				    enclosureUrl.includes('imgur.com') ||
-				    enclosureUrl.includes('googleusercontent.com')) {
-					return enclosureUrl;
+			if (rssItem['media:content']) {
+				const mediaContent = rssItem['media:content'];
+				if (typeof mediaContent === 'string') {
+					return mediaContent;
+				} else if (mediaContent.$ && mediaContent.$.url) {
+					return mediaContent.$.url;
 				}
-				// typeがimage/で始まる場合も取得
-				if (rssItem.enclosure.$.type && rssItem.enclosure.$.type.startsWith('image/')) {
-					return enclosureUrl;
+			}
+
+			if (rssItem['media:thumbnail']) {
+				const mediaThumbnail = rssItem['media:thumbnail'];
+				if (typeof mediaThumbnail === 'string') {
+					return mediaThumbnail;
+				} else if (mediaThumbnail.$ && mediaThumbnail.$.url) {
+					return mediaThumbnail.$.url;
+				}
+			}
+
+			if (rssItem.enclosure) {
+				const enclosure = rssItem.enclosure;
+				let enclosureUrl = '';
+
+				if (typeof enclosure === 'string') {
+					enclosureUrl = enclosure;
+				} else if (enclosure.$ && enclosure.$.url) {
+					enclosureUrl = enclosure.$.url;
+				}
+
+				if (enclosureUrl) {
+					if (enclosureUrl.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i) ||
+					    enclosureUrl.includes('cloudinary.com') ||
+					    enclosureUrl.includes('imgur.com') ||
+					    enclosureUrl.includes('googleusercontent.com')) {
+						return enclosureUrl;
+					}
+					if (typeof enclosure === 'object' && enclosure.$ && enclosure.$.type && enclosure.$.type.startsWith('image/')) {
+						return enclosureUrl;
+					}
 				}
 			}
 		}
