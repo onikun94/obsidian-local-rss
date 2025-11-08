@@ -257,8 +257,8 @@ export default class LocalRssPlugin extends Plugin {
 		const savedDate = new Date(rssItem.savedDate);
 		const fullSavedDateTime = this.formatDateTime(savedDate);
 
-		const escapedTitle = this.escapeYamlValue(rssItem.title);
-		const escapedAuthor = this.escapeYamlValue(rssItem.author);
+		const escapedTitle = this.escapeYamlValue(this.normalizeXmlValue(rssItem.title));
+		const escapedAuthor = this.escapeYamlValue(this.normalizeXmlValue(rssItem.author));
 
 		// descriptionの最初の50文字を取得（改行を除去）
 		const descriptionCleaned = rssItem.description.replace(/\r?\n/g, ' ').trim();
@@ -365,8 +365,8 @@ export default class LocalRssPlugin extends Plugin {
 		const savedDate = new Date(rssItem.savedDate);
 		const fullSavedDateTime = this.formatDateTime(savedDate);
 
-		const escapedTitle = this.escapeYamlValue(rssItem.title);
-		const escapedAuthor = this.escapeYamlValue(rssItem.author);
+		const escapedTitle = this.escapeYamlValue(this.normalizeXmlValue(rssItem.title));
+		const escapedAuthor = this.escapeYamlValue(this.normalizeXmlValue(rssItem.author));
 
 		// descriptionの最初の50文字を取得（改行を除去）
 		const descriptionCleaned = rssItem.description.replace(/\r?\n/g, ' ').trim();
