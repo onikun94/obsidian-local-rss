@@ -1,21 +1,12 @@
-import { App, Modal, Notice, Plugin, PluginSettingTab, Setting, normalizePath, sanitizeHTMLToDom, TFile, TFolder } from 'obsidian';
-import * as xml2js from 'xml2js';
+import { App, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import { t } from './localization';
-import { stripHtml, htmlToMarkdown } from './src/utils/htmlProcessor';
-import { escapeYamlValue } from './src/utils/yamlFormatter';
-import { prepareTemplate, renderTemplate } from './src/utils/templateEngine';
-import { XmlNormalizer } from './src/adapters/parsers/XmlNormalizer';
 import { FeedFetcher } from './src/adapters/http/FeedFetcher';
 import { ImageExtractor } from './src/services/ImageExtractor';
+import { UpdateFeeds } from './src/usecases/UpdateFeeds';
 import {
 	Feed,
 	LocalRssSettings,
-	DEFAULT_SETTINGS,
-	RssFeedItem,
-	AtomFeedItem,
-	AtomCategory,
-	AtomFeed,
-	RssItem
+	DEFAULT_SETTINGS
 } from './src/types';
 
 export default class LocalRssPlugin extends Plugin {
@@ -23,6 +14,7 @@ export default class LocalRssPlugin extends Plugin {
 	updateIntervalId: number | null = null;
 	private feedFetcher: FeedFetcher;
 	private imageExtractor: ImageExtractor;
+	private updateFeedsUseCase: UpdateFeeds;
 
 	async onload() {
 		await this.loadSettings();
@@ -30,6 +22,14 @@ export default class LocalRssPlugin extends Plugin {
 		// アダプターとサービスの初期化
 		this.feedFetcher = new FeedFetcher();
 		this.imageExtractor = new ImageExtractor(this.feedFetcher);
+
+		// ユースケースの初期化
+		this.updateFeedsUseCase = new UpdateFeeds(
+			this.app.vault,
+			this.settings,
+			this.feedFetcher,
+			this.imageExtractor
+		);
 
 		this.addRibbonIcon('rss', t('updateRssFeeds'), (evt: MouseEvent) => {
 			this.updateFeeds();
@@ -83,347 +83,10 @@ export default class LocalRssPlugin extends Plugin {
 	}
 
 	async updateFeeds() {
-		new Notice(t('updatingRssFeeds'));
-
-		const folderPath = this.settings.folderPath;
-		const folder = this.app.vault.getAbstractFileByPath(folderPath);
-		if (!folder) {
-			await this.app.vault.createFolder(folderPath);
-		}
-
-		for (const feed of this.settings.feeds.filter(f => f.enabled)) {
-			try {
-				const xml = await this.feedFetcher.fetch(feed.url);
-
-				const parser = new xml2js.Parser({ explicitArray: false });
-				const result = await parser.parseStringPromise(xml);
-
-				const feedFolderPath = `${folderPath}/${feed.folder || feed.name}`;
-				const feedFolder = this.app.vault.getAbstractFileByPath(feedFolderPath);
-				if (!feedFolder) {
-					await this.app.vault.createFolder(feedFolderPath);
-				}
-
-				const channel = result.rss?.channel;
-				if (!channel) {
-					const feed = result.feed;
-					if (feed && feed.entry) {
-						const items = Array.isArray(feed.entry) ? feed.entry : [feed.entry];
-						for (const item of items) {
-							await this.processAtomItem(item, feed, feedFolderPath);
-						}
-					} else {
-						new Notice(t('unsupportedFeedFormat', feed.name));
-					}
-					continue;
-				}
-
-				const items = Array.isArray(channel.item) ? channel.item : [channel.item];
-
-				for (const item of items) {
-					await this.processRssItem(item, feed, feedFolderPath);
-				}
-
-				if (this.settings.autoDeleteEnabled) {
-					await this.deleteOldFiles(feedFolderPath);
-				}
-
-				new Notice(t('updatedFeed', feed.name));
-			} catch (error) {
-				console.error(`Error updating feed ${feed.name}:`, error);
-				new Notice(t('errorUpdatingFeed', feed.name));
-			}
-		}
+		await this.updateFeedsUseCase.execute();
 
 		this.settings.lastUpdateTime = Date.now();
 		await this.saveSettings();
-
-		new Notice(t('rssFeedUpdateCompleted'));
-	}
-
-	async processRssItem(item: RssFeedItem, feed: Feed, folderPath: string) {
-		const rssItem: RssItem = {
-			title: item.title || 'Untitled',
-			description: stripHtml(item.description || '', 200),
-			content: item['content:encoded'] || item.description || '',
-			link: item.link || '',
-			pubDate: item.pubDate || item.published || new Date().toISOString(),
-			author: item.author || item['dc:creator'] || feed.name,
-			categories: [],
-			imageUrl: '',
-			savedDate: new Date().toISOString()
-		};
-
-		rssItem.categories = this.normalizeCategories(item.category);
-
-		if (this.settings.includeImages) {
-			rssItem.imageUrl = this.imageExtractor.extractFromItem(item);
-
-			// RSSフィードに画像がない場合、リンク先から取得
-			if (!rssItem.imageUrl && this.settings.fetchImageFromLink && rssItem.link) {
-				rssItem.imageUrl = await this.imageExtractor.fetchFromUrl(rssItem.link);
-			}
-		}
-
-		let fileName = this.settings.fileNameTemplate
-			.replace(/{{title}}/g, rssItem.title)
-			.replace(/{{published}}/g, this.formatDateTime(new Date(rssItem.pubDate)));
-
-		fileName = fileName.replace(/[\\/:*?"<>|]/g, '-');
-		fileName = normalizePath(`${folderPath}/${fileName}.md`);
-
-		const existingFile = this.app.vault.getAbstractFileByPath(fileName);
-		if (existingFile) {
-			return;
-		}
-
-		const pubDate = new Date(rssItem.pubDate);
-		const fullDateTime = this.formatDateTime(pubDate);
-
-		const savedDate = new Date(rssItem.savedDate);
-		const fullSavedDateTime = this.formatDateTime(savedDate);
-
-		const escapedTitle = escapeYamlValue(XmlNormalizer.normalizeValue(rssItem.title));
-		const escapedAuthor = escapeYamlValue(XmlNormalizer.normalizeValue(rssItem.author));
-
-		// descriptionの最初の50文字を取得（改行を除去）
-		const descriptionCleaned = rssItem.description.replace(/\r?\n/g, ' ').trim();
-		const descriptionShort = descriptionCleaned.substring(0, 50) + (descriptionCleaned.length > 50 ? '...' : '');
-		const escapedDescription = escapeYamlValue(descriptionCleaned);
-		const escapedDescriptionShort = escapeYamlValue(descriptionShort);
-
-		let processedContent = rssItem.content;
-		if (this.settings.imageWidth && this.settings.imageWidth !== '100%') {
-			processedContent = this.resizeImagesInContent(processedContent);
-		}
-		// Convert HTML to Markdown
-		processedContent = htmlToMarkdown(processedContent);
-
-		const template = prepareTemplate(this.settings.template, rssItem);
-
-		const fileContent = renderTemplate(template, {
-			title: escapedTitle,
-			link: rssItem.link,
-			author: escapedAuthor,
-			publishedTime: fullDateTime,
-			savedTime: fullSavedDateTime,
-			image: rssItem.imageUrl,
-			description: escapedDescription,
-			descriptionShort: escapedDescriptionShort,
-			tags: rssItem.categories.map(c => `#${c}`).join(' '),
-			content: processedContent
-		});
-
-		await this.app.vault.create(fileName, fileContent);
-	}
-
-	async processAtomItem(item: AtomFeedItem, feed: AtomFeed, folderPath: string) {
-		const title = XmlNormalizer.normalizeValue(item.title);
-		const summary = XmlNormalizer.normalizeValue(item.summary);
-		const content = XmlNormalizer.normalizeValue(item.content);
-		const link = XmlNormalizer.normalizeAtomLink(item.link);
-		const author = XmlNormalizer.normalizeAtomAuthor(item.author, XmlNormalizer.normalizeValue(feed.title));
-
-		const rssItem: RssItem = {
-			title: title || 'Untitled',
-			description: stripHtml(summary, 200),
-			content: content || summary,
-			link: link,
-			pubDate: item.published || item.updated || new Date().toISOString(),
-			author: author,
-			categories: [],
-			imageUrl: '',
-			savedDate: new Date().toISOString()
-		};
-
-		rssItem.categories = this.normalizeCategories(item.category);
-
-		if (this.settings.includeImages) {
-			rssItem.imageUrl = this.imageExtractor.extractFromItem(item);
-
-			// RSSフィードに画像がない場合、リンク先から取得
-			if (!rssItem.imageUrl && this.settings.fetchImageFromLink && rssItem.link) {
-				rssItem.imageUrl = await this.imageExtractor.fetchFromUrl(rssItem.link);
-			}
-		}
-
-		let fileName = this.settings.fileNameTemplate
-			.replace(/{{title}}/g, rssItem.title)
-			.replace(/{{published}}/g, this.formatDateTime(new Date(rssItem.pubDate)));
-
-		fileName = fileName.replace(/[\\/:*?"<>|]/g, '-');
-		fileName = normalizePath(`${folderPath}/${fileName}.md`);
-
-		const existingFile = this.app.vault.getAbstractFileByPath(fileName);
-		if (existingFile) {
-			return;
-		}
-
-		const pubDate = new Date(rssItem.pubDate);
-		const fullDateTime = this.formatDateTime(pubDate);
-
-		const savedDate = new Date(rssItem.savedDate);
-		const fullSavedDateTime = this.formatDateTime(savedDate);
-
-		const escapedTitle = escapeYamlValue(XmlNormalizer.normalizeValue(rssItem.title));
-		const escapedAuthor = escapeYamlValue(XmlNormalizer.normalizeValue(rssItem.author));
-
-		// descriptionの最初の50文字を取得（改行を除去）
-		const descriptionCleaned = rssItem.description.replace(/\r?\n/g, ' ').trim();
-		const descriptionShort = descriptionCleaned.substring(0, 50) + (descriptionCleaned.length > 50 ? '...' : '');
-		const escapedDescription = escapeYamlValue(descriptionCleaned);
-		const escapedDescriptionShort = escapeYamlValue(descriptionShort);
-
-		let processedContent = rssItem.content;
-		if (this.settings.imageWidth && this.settings.imageWidth !== '100%') {
-			processedContent = this.resizeImagesInContent(processedContent);
-		}
-		// Convert HTML to Markdown
-		processedContent = htmlToMarkdown(processedContent);
-
-		const template = prepareTemplate(this.settings.template, rssItem);
-
-		const fileContent = renderTemplate(template, {
-			title: escapedTitle,
-			link: rssItem.link,
-			author: escapedAuthor,
-			publishedTime: fullDateTime,
-			savedTime: fullSavedDateTime,
-			image: rssItem.imageUrl,
-			description: escapedDescription,
-			descriptionShort: escapedDescriptionShort,
-			tags: rssItem.categories.map(c => `#${c}`).join(' '),
-			content: processedContent
-		});
-
-		await this.app.vault.create(fileName, fileContent);
-	}
-
-	resizeImagesInContent(content: string): string {
-		if (!content) return content;
-
-		// 文字列でない場合はそのまま返す（xml2jsがオブジェクトを返す場合の対策）
-		if (typeof content !== 'string') {
-			console.warn('resizeImagesInContent: received non-string input', content);
-			return '';
-		}
-
-		// Use DOM API instead of string manipulation (CLAUDE-OB.md compliance)
-		const fragment = sanitizeHTMLToDom(content);
-		const div = createDiv();
-		div.appendChild(fragment);
-
-		// Find all img elements and add width attribute
-		const images = div.querySelectorAll('img');
-		images.forEach((img) => {
-			// Only add width if it doesn't already have width or style attribute
-			if (!img.hasAttribute('width') && !img.hasAttribute('style')) {
-				img.setAttribute('width', this.settings.imageWidth);
-			}
-		});
-
-		return div.innerHTML;
-	}
-
-	private normalizeCategories(categoryField: unknown): string[] {
-		if (!categoryField) {
-			return [];
-		}
-
-		const categories = Array.isArray(categoryField) ? categoryField : [categoryField];
-		return categories
-			.map((category: unknown) => this.extractCategoryText(category))
-			.filter((category: string): category is string => category.length > 0);
-	}
-
-	private extractCategoryText(category: unknown): string {
-		if (category == null) {
-			return '';
-		}
-
-		if (typeof category === 'string') {
-			return category.trim();
-		}
-
-		if (typeof category === 'object') {
-			const categoryRecord = category as Record<string, unknown>;
-
-			if (typeof categoryRecord['_'] === 'string') {
-				return (categoryRecord['_'] as string).trim();
-			}
-
-			if (typeof categoryRecord['term'] === 'string') {
-				return (categoryRecord['term'] as string).trim();
-			}
-		}
-
-		return '';
-	}
-
-	formatDate(date: Date): string {
-		return date.toISOString().split('T')[0];
-	}
-
-	formatDateTime(date: Date): string {
-		const year = date.getFullYear();
-		const month = String(date.getMonth() + 1).padStart(2, '0');
-		const day = String(date.getDate()).padStart(2, '0');
-		const hours = String(date.getHours()).padStart(2, '0');
-		const minutes = String(date.getMinutes()).padStart(2, '0');
-		const seconds = String(date.getSeconds()).padStart(2, '0');
-
-		return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-	}
-
-	async deleteOldFiles(folderPath: string) {
-		try {
-			const folder = this.app.vault.getAbstractFileByPath(folderPath) as TFolder;
-			if (!folder || !(folder instanceof TFolder)) {
-				return;
-			}
-			const files = folder.children.filter(file => file instanceof TFile && file.extension === 'md') as TFile[];
-
-			let cutoffDate: number;
-			if (this.settings.autoDeleteTimeUnit === 'minutes') {
-				cutoffDate = Date.now() - (this.settings.autoDeleteDays * 60 * 1000);
-			} else {
-				cutoffDate = Date.now() - (this.settings.autoDeleteDays * 24 * 60 * 60 * 1000);
-			}
-
-			for (const file of files) {
-				try {
-					const fileContent = await this.app.vault.read(file);
-
-					if (this.settings.autoDeleteBasedOn === 'publish_date') {
-						const publishedMatch = fileContent.match(/publish_date: (.*?)$/m);
-
-						if (publishedMatch && publishedMatch[1]) {
-							const publishedTime = new Date(publishedMatch[1]).getTime();
-							if (publishedTime && publishedTime < cutoffDate) {
-								await this.app.vault.delete(file);
-							}
-						}
-					} else {
-						const savedMatch = fileContent.match(/saved: (.*?)$/m);
-
-						if (savedMatch && savedMatch[1]) {
-							const savedTime = new Date(savedMatch[1]).getTime();
-							if (savedTime && savedTime < cutoffDate) {
-								await this.app.vault.delete(file);
-							}
-						} else {
-							if (file.stat.ctime < cutoffDate) {
-								await this.app.vault.delete(file);
-							}
-						}
-					}
-				} catch (e) {
-					console.error(`Error processing file: ${file.path}`, e);
-				}
-			}
-		} catch (error) {
-			console.error('Error deleting old files:', error);
-		}
 	}
 }
 
