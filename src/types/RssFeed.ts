@@ -17,7 +17,7 @@ export interface AtomFeedItem {
 	title?: string | { _: string };
 	summary?: string | { _: string };
 	content?: string | { _: string };
-	link?: { href: string } | { href: string }[];
+	link?: { href: string } | { $: { href: string; rel?: string; type?: string } } | Array<{ href: string } | { $: { href: string; rel?: string; type?: string } }>;
 	published?: string;
 	updated?: string;
 	author?: { name: string } | { name: string }[];
