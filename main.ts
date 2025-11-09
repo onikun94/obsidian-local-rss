@@ -2,6 +2,8 @@ import { App, Modal, Notice, Plugin, PluginSettingTab, Setting, normalizePath, r
 import * as xml2js from 'xml2js';
 import { t } from './localization';
 import { stripHtml, htmlToMarkdown } from './src/utils/htmlProcessor';
+import { escapeYamlValue } from './src/utils/yamlFormatter';
+import { prepareTemplate, renderTemplate } from './src/utils/templateEngine';
 import {
 	Feed,
 	LocalRssSettings,
@@ -12,8 +14,6 @@ import {
 	AtomFeed,
 	RssItem
 } from './src/types';
-
-const YAML_SPECIAL_CHARS = /[[\]{}:>|*&!%@,]/;
 
 export default class LocalRssPlugin extends Plugin {
 	settings: LocalRssSettings;
@@ -178,14 +178,14 @@ export default class LocalRssPlugin extends Plugin {
 		const savedDate = new Date(rssItem.savedDate);
 		const fullSavedDateTime = this.formatDateTime(savedDate);
 
-		const escapedTitle = this.escapeYamlValue(this.normalizeXmlValue(rssItem.title));
-		const escapedAuthor = this.escapeYamlValue(this.normalizeXmlValue(rssItem.author));
+		const escapedTitle = escapeYamlValue(this.normalizeXmlValue(rssItem.title));
+		const escapedAuthor = escapeYamlValue(this.normalizeXmlValue(rssItem.author));
 
 		// descriptionの最初の50文字を取得（改行を除去）
 		const descriptionCleaned = rssItem.description.replace(/\r?\n/g, ' ').trim();
 		const descriptionShort = descriptionCleaned.substring(0, 50) + (descriptionCleaned.length > 50 ? '...' : '');
-		const escapedDescription = this.escapeYamlValue(descriptionCleaned);
-		const escapedDescriptionShort = this.escapeYamlValue(descriptionShort);
+		const escapedDescription = escapeYamlValue(descriptionCleaned);
+		const escapedDescriptionShort = escapeYamlValue(descriptionShort);
 
 		let processedContent = rssItem.content;
 		if (this.settings.imageWidth && this.settings.imageWidth !== '100%') {
@@ -194,19 +194,20 @@ export default class LocalRssPlugin extends Plugin {
 		// Convert HTML to Markdown
 		processedContent = htmlToMarkdown(processedContent);
 
-		const template = this.prepareTemplate(this.settings.template, rssItem);
+		const template = prepareTemplate(this.settings.template, rssItem);
 
-		const fileContent = template
-			.replace(/{{title}}/g, escapedTitle)
-			.replace(/{{link}}/g, rssItem.link)
-			.replace(/{{author}}/g, escapedAuthor)
-			.replace(/{{publishedTime}}/g, fullDateTime)
-			.replace(/{{savedTime}}/g, fullSavedDateTime)
-			.replace(/{{image}}/g, rssItem.imageUrl)
-			.replace(/{{description}}/g, escapedDescription)
-			.replace(/{{descriptionShort}}/g, escapedDescriptionShort)
-			.replace(/{{#tags}}/g, rssItem.categories.map(c => `#${c}`).join(' '))
-			.replace(/{{content}}/g, processedContent);
+		const fileContent = renderTemplate(template, {
+			title: escapedTitle,
+			link: rssItem.link,
+			author: escapedAuthor,
+			publishedTime: fullDateTime,
+			savedTime: fullSavedDateTime,
+			image: rssItem.imageUrl,
+			description: escapedDescription,
+			descriptionShort: escapedDescriptionShort,
+			tags: rssItem.categories.map(c => `#${c}`).join(' '),
+			content: processedContent
+		});
 
 		await this.app.vault.create(fileName, fileContent);
 	}
@@ -286,14 +287,14 @@ export default class LocalRssPlugin extends Plugin {
 		const savedDate = new Date(rssItem.savedDate);
 		const fullSavedDateTime = this.formatDateTime(savedDate);
 
-		const escapedTitle = this.escapeYamlValue(this.normalizeXmlValue(rssItem.title));
-		const escapedAuthor = this.escapeYamlValue(this.normalizeXmlValue(rssItem.author));
+		const escapedTitle = escapeYamlValue(this.normalizeXmlValue(rssItem.title));
+		const escapedAuthor = escapeYamlValue(this.normalizeXmlValue(rssItem.author));
 
 		// descriptionの最初の50文字を取得（改行を除去）
 		const descriptionCleaned = rssItem.description.replace(/\r?\n/g, ' ').trim();
 		const descriptionShort = descriptionCleaned.substring(0, 50) + (descriptionCleaned.length > 50 ? '...' : '');
-		const escapedDescription = this.escapeYamlValue(descriptionCleaned);
-		const escapedDescriptionShort = this.escapeYamlValue(descriptionShort);
+		const escapedDescription = escapeYamlValue(descriptionCleaned);
+		const escapedDescriptionShort = escapeYamlValue(descriptionShort);
 
 		let processedContent = rssItem.content;
 		if (this.settings.imageWidth && this.settings.imageWidth !== '100%') {
@@ -302,19 +303,20 @@ export default class LocalRssPlugin extends Plugin {
 		// Convert HTML to Markdown
 		processedContent = htmlToMarkdown(processedContent);
 
-		const template = this.prepareTemplate(this.settings.template, rssItem);
+		const template = prepareTemplate(this.settings.template, rssItem);
 
-		const fileContent = template
-			.replace(/{{title}}/g, escapedTitle)
-			.replace(/{{link}}/g, rssItem.link)
-			.replace(/{{author}}/g, escapedAuthor)
-			.replace(/{{publishedTime}}/g, fullDateTime)
-			.replace(/{{savedTime}}/g, fullSavedDateTime)
-			.replace(/{{image}}/g, rssItem.imageUrl)
-			.replace(/{{description}}/g, escapedDescription)
-			.replace(/{{descriptionShort}}/g, escapedDescriptionShort)
-			.replace(/{{#tags}}/g, rssItem.categories.map(c => `#${c}`).join(' '))
-			.replace(/{{content}}/g, processedContent);
+		const fileContent = renderTemplate(template, {
+			title: escapedTitle,
+			link: rssItem.link,
+			author: escapedAuthor,
+			publishedTime: fullDateTime,
+			savedTime: fullSavedDateTime,
+			image: rssItem.imageUrl,
+			description: escapedDescription,
+			descriptionShort: escapedDescriptionShort,
+			tags: rssItem.categories.map(c => `#${c}`).join(' '),
+			content: processedContent
+		});
 
 		await this.app.vault.create(fileName, fileContent);
 	}
@@ -378,27 +380,6 @@ export default class LocalRssPlugin extends Plugin {
 		}
 
 		return '';
-	}
-
-	private prepareTemplate(template: string, rssItem: RssItem): string {
-		let preparedTemplate = template;
-
-		if (!rssItem.imageUrl) {
-			preparedTemplate = preparedTemplate.replace(/^.*{{image}}.*\n?/gm, '');
-		}
-
-		return preparedTemplate;
-	}
-
-	escapeYamlValue(value: string): string {
-		// 改行文字を空白に置き換える
-		const valueWithoutNewlines = value.replace(/\r?\n/g, ' ').trim();
-
-		if (YAML_SPECIAL_CHARS.test(valueWithoutNewlines)) {
-			const escapedValue = valueWithoutNewlines.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-			return `"${escapedValue}"`;
-		}
-		return valueWithoutNewlines;
 	}
 
 	formatDate(date: Date): string {
