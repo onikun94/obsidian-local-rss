@@ -2,95 +2,16 @@ import { App, Modal, Notice, Plugin, PluginSettingTab, Setting, normalizePath, r
 import * as xml2js from 'xml2js';
 import { t } from './localization';
 import { stripHtml, htmlToMarkdown } from './src/utils/htmlProcessor';
-
-
-interface LocalRssSettings {
-	feeds: Feed[];
-	folderPath: string;
-	template: string;
-	fileNameTemplate: string;
-	updateInterval: number;
-	lastUpdateTime: number;
-	includeImages: boolean;
-	fetchImageFromLink: boolean;
-	dateFormat: string;
-	imageWidth: string;
-	autoDeleteEnabled: boolean;
-	autoDeleteDays: number;
-	autoDeleteTimeUnit: string;
-	autoDeleteBasedOn: string;
-}
-
-interface RssFeedItem {
-	title?: string;
-	description?: string;
-	'content:encoded'?: string;
-	link?: string;
-	pubDate?: string;
-	published?: string;
-	author?: string;
-	'dc:creator'?: string;
-	category?: string | string[];
-	'media:content'?: string | { $: { url: string } };
-	'media:thumbnail'?: string | { $: { url: string } };
-	enclosure?: string | { $: { type: string; url: string } };
-}
-
-interface AtomFeedItem {
-	title?: string | { _: string };
-	summary?: string | { _: string };
-	content?: string | { _: string };
-	link?: { href: string } | { href: string }[];
-	published?: string;
-	updated?: string;
-	author?: { name: string } | { name: string }[];
-	category?: AtomCategory | AtomCategory[];
-}
-
-interface AtomCategory {
-	term?: string;
-}
-
-interface AtomFeed {
-	title?: string | { _: string };
-	entry?: AtomFeedItem | AtomFeedItem[];
-}
-
-interface Feed {
-	url: string;
-	name: string;
-	folder: string;
-	enabled: boolean;
-}
-
-interface RssItem {
-	title: string;
-	description: string;
-	content: string;
-	link: string;
-	pubDate: string;
-	author: string;
-	categories: string[];
-	imageUrl: string;
-	savedDate: string;
-}
-
-const DEFAULT_SETTINGS: LocalRssSettings = {
-	feeds: [],
-	folderPath: 'RSS',
-	template: '---\ntitle: {{title}}\nlink: {{link}}\nauthor: {{author}}\npublish_date: {{publishedTime}}\nsaved_date: {{savedTime}}\nimage: {{image}}\ntags: {{#tags}}\n---\n\n![image]({{image}})\n\n{{content}}',
-	fileNameTemplate: '{{title}}',
-	updateInterval: 60,
-	lastUpdateTime: 0,
-	includeImages: true,
-	fetchImageFromLink: false,
-	dateFormat: 'YYYY-MM-DD HH:mm:ss',
-	imageWidth: '50%',
-	autoDeleteEnabled: false,
-	autoDeleteDays: 30,
-	autoDeleteTimeUnit: 'days',
-	autoDeleteBasedOn: 'saved'
-}
+import {
+	Feed,
+	LocalRssSettings,
+	DEFAULT_SETTINGS,
+	RssFeedItem,
+	AtomFeedItem,
+	AtomCategory,
+	AtomFeed,
+	RssItem
+} from './src/types';
 
 const YAML_SPECIAL_CHARS = /[[\]{}:>|*&!%@,]/;
 
