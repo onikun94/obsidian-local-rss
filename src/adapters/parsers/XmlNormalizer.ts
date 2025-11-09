@@ -20,13 +20,22 @@ export class XmlNormalizer {
 	 * @param link Atomのlink要素
 	 * @returns 正規化されたURL
 	 */
-	static normalizeAtomLink(link: { href: string } | { href: string }[] | undefined): string {
+	static normalizeAtomLink(link: { href: string } | { $: { href: string } } | Array<{ href: string } | { $: { href: string } }> | undefined): string {
 		if (!link) return '';
-		if (Array.isArray(link)) {
-			// 配列の場合は最初のリンクを返す
-			return link[0]?.href || '';
+
+		// 配列の場合は最初の要素を取得
+		const linkObj = Array.isArray(link) ? link[0] : link;
+		if (!linkObj) return '';
+
+		// xml2js attributes format: { $: { href: "..." } }
+		if ('$' in linkObj && linkObj.$ && 'href' in linkObj.$) {
+			return linkObj.$.href || '';
 		}
-		return link.href || '';
+		// Direct format: { href: "..." }
+		if ('href' in linkObj) {
+			return linkObj.href || '';
+		}
+		return '';
 	}
 
 	/**

@@ -135,33 +135,51 @@ export class ImageExtractor {
 		}
 
 		try {
+			let imageUrl = '';
+
 			// OGP画像を抽出
 			// <meta property="og:image" content="..." />
 			const ogImageMatch1 = /<meta\s+property=["']og:image["']\s+content=["'](.*?)["']/i.exec(html);
 			if (ogImageMatch1 && ogImageMatch1[1]) {
-				return ogImageMatch1[1];
+				imageUrl = ogImageMatch1[1];
 			}
 
 			// <meta content="..." property="og:image" />
-			const ogImageMatch2 = /<meta\s+content=["'](.*?)["']\s+property=["']og:image["']/i.exec(html);
-			if (ogImageMatch2 && ogImageMatch2[1]) {
-				return ogImageMatch2[1];
+			if (!imageUrl) {
+				const ogImageMatch2 = /<meta\s+content=["'](.*?)["']\s+property=["']og:image["']/i.exec(html);
+				if (ogImageMatch2 && ogImageMatch2[1]) {
+					imageUrl = ogImageMatch2[1];
+				}
 			}
 
 			// twitter:image も試す
-			const twitterImageMatch1 = /<meta\s+name=["']twitter:image["']\s+content=["'](.*?)["']/i.exec(html);
-			if (twitterImageMatch1 && twitterImageMatch1[1]) {
-				return twitterImageMatch1[1];
+			if (!imageUrl) {
+				const twitterImageMatch1 = /<meta\s+name=["']twitter:image["']\s+content=["'](.*?)["']/i.exec(html);
+				if (twitterImageMatch1 && twitterImageMatch1[1]) {
+					imageUrl = twitterImageMatch1[1];
+				}
 			}
 
-			const twitterImageMatch2 = /<meta\s+content=["'](.*?)["']\s+name=["']twitter:image["']/i.exec(html);
-			if (twitterImageMatch2 && twitterImageMatch2[1]) {
-				return twitterImageMatch2[1];
+			if (!imageUrl) {
+				const twitterImageMatch2 = /<meta\s+content=["'](.*?)["']\s+name=["']twitter:image["']/i.exec(html);
+				if (twitterImageMatch2 && twitterImageMatch2[1]) {
+					imageUrl = twitterImageMatch2[1];
+				}
 			}
 
-			return '';
+			if (!imageUrl) {
+				return '';
+			}
+
+			// 相対パスの場合は絶対URLに変換
+			if (imageUrl.startsWith('/')) {
+				const urlObj = new URL(url);
+				imageUrl = `${urlObj.origin}${imageUrl}`;
+			}
+
+			return imageUrl;
 		} catch (error) {
-			console.error(`Error parsing OGP image from ${url}:`, error);
+			console.error(`[ImageExtractor] Error parsing OGP image from ${url}:`, error);
 			return '';
 		}
 	}
