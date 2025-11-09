@@ -1,9 +1,11 @@
-import { App, Modal, Notice, Plugin, PluginSettingTab, Setting, normalizePath, requestUrl, sanitizeHTMLToDom, TFile, TFolder } from 'obsidian';
+import { App, Modal, Notice, Plugin, PluginSettingTab, Setting, normalizePath, sanitizeHTMLToDom, TFile, TFolder } from 'obsidian';
 import * as xml2js from 'xml2js';
 import { t } from './localization';
 import { stripHtml, htmlToMarkdown } from './src/utils/htmlProcessor';
 import { escapeYamlValue } from './src/utils/yamlFormatter';
 import { prepareTemplate, renderTemplate } from './src/utils/templateEngine';
+import { XmlNormalizer } from './src/adapters/parsers/XmlNormalizer';
+import { FeedFetcher } from './src/adapters/http/FeedFetcher';
 import {
 	Feed,
 	LocalRssSettings,
@@ -18,9 +20,13 @@ import {
 export default class LocalRssPlugin extends Plugin {
 	settings: LocalRssSettings;
 	updateIntervalId: number | null = null;
+	private feedFetcher: FeedFetcher;
 
 	async onload() {
 		await this.loadSettings();
+
+		// アダプターの初期化
+		this.feedFetcher = new FeedFetcher();
 
 		this.addRibbonIcon('rss', t('updateRssFeeds'), (evt: MouseEvent) => {
 			this.updateFeeds();
@@ -84,14 +90,10 @@ export default class LocalRssPlugin extends Plugin {
 
 		for (const feed of this.settings.feeds.filter(f => f.enabled)) {
 			try {
-				const response = await requestUrl(feed.url);
-				if (response.status !== 200) {
-					new Notice(t('failedToFetchFeed', feed.name));
-					continue;
-				}
+				const xml = await this.feedFetcher.fetch(feed.url);
 
 				const parser = new xml2js.Parser({ explicitArray: false });
-				const result = await parser.parseStringPromise(response.text);
+				const result = await parser.parseStringPromise(xml);
 
 				const feedFolderPath = `${folderPath}/${feed.folder || feed.name}`;
 				const feedFolder = this.app.vault.getAbstractFileByPath(feedFolderPath);
@@ -178,8 +180,8 @@ export default class LocalRssPlugin extends Plugin {
 		const savedDate = new Date(rssItem.savedDate);
 		const fullSavedDateTime = this.formatDateTime(savedDate);
 
-		const escapedTitle = escapeYamlValue(this.normalizeXmlValue(rssItem.title));
-		const escapedAuthor = escapeYamlValue(this.normalizeXmlValue(rssItem.author));
+		const escapedTitle = escapeYamlValue(XmlNormalizer.normalizeValue(rssItem.title));
+		const escapedAuthor = escapeYamlValue(XmlNormalizer.normalizeValue(rssItem.author));
 
 		// descriptionの最初の50文字を取得（改行を除去）
 		const descriptionCleaned = rssItem.description.replace(/\r?\n/g, ' ').trim();
@@ -212,39 +214,12 @@ export default class LocalRssPlugin extends Plugin {
 		await this.app.vault.create(fileName, fileContent);
 	}
 
-	// ヘルパー関数: xml2jsがパースした値を文字列に正規化
-	private normalizeXmlValue(value: string | { _: string } | undefined): string {
-		if (!value) return '';
-		if (typeof value === 'string') return value;
-		if (typeof value === 'object' && '_' in value) return value._;
-		return '';
-	}
-
-	// ヘルパー関数: linkを正規化
-	private normalizeAtomLink(link: { href: string } | { href: string }[] | undefined): string {
-		if (!link) return '';
-		if (Array.isArray(link)) {
-			// 配列の場合は最初のリンクを返す
-			return link[0]?.href || '';
-		}
-		return link.href || '';
-	}
-
-	// ヘルパー関数: authorを正規化
-	private normalizeAtomAuthor(author: { name: string } | { name: string }[] | undefined, feedTitle?: string): string {
-		if (!author) return feedTitle || '';
-		if (Array.isArray(author)) {
-			return author[0]?.name || feedTitle || '';
-		}
-		return author.name || feedTitle || '';
-	}
-
 	async processAtomItem(item: AtomFeedItem, feed: AtomFeed, folderPath: string) {
-		const title = this.normalizeXmlValue(item.title);
-		const summary = this.normalizeXmlValue(item.summary);
-		const content = this.normalizeXmlValue(item.content);
-		const link = this.normalizeAtomLink(item.link);
-		const author = this.normalizeAtomAuthor(item.author, this.normalizeXmlValue(feed.title));
+		const title = XmlNormalizer.normalizeValue(item.title);
+		const summary = XmlNormalizer.normalizeValue(item.summary);
+		const content = XmlNormalizer.normalizeValue(item.content);
+		const link = XmlNormalizer.normalizeAtomLink(item.link);
+		const author = XmlNormalizer.normalizeAtomAuthor(item.author, XmlNormalizer.normalizeValue(feed.title));
 
 		const rssItem: RssItem = {
 			title: title || 'Untitled',
@@ -287,8 +262,8 @@ export default class LocalRssPlugin extends Plugin {
 		const savedDate = new Date(rssItem.savedDate);
 		const fullSavedDateTime = this.formatDateTime(savedDate);
 
-		const escapedTitle = escapeYamlValue(this.normalizeXmlValue(rssItem.title));
-		const escapedAuthor = escapeYamlValue(this.normalizeXmlValue(rssItem.author));
+		const escapedTitle = escapeYamlValue(XmlNormalizer.normalizeValue(rssItem.title));
+		const escapedAuthor = escapeYamlValue(XmlNormalizer.normalizeValue(rssItem.author));
 
 		// descriptionの最初の50文字を取得（改行を除去）
 		const descriptionCleaned = rssItem.description.replace(/\r?\n/g, ' ').trim();
@@ -449,7 +424,7 @@ export default class LocalRssPlugin extends Plugin {
 		} else if ('content' in item) {
 			const atomItem = item as AtomFeedItem;
 			// xml2jsがオブジェクトとして返す場合に対応
-			content = this.normalizeXmlValue(atomItem.content) || this.normalizeXmlValue(atomItem.summary) || '';
+			content = XmlNormalizer.normalizeValue(atomItem.content) || XmlNormalizer.normalizeValue(atomItem.summary) || '';
 		}
 
 		if (content && typeof content === 'string') {
@@ -463,13 +438,12 @@ export default class LocalRssPlugin extends Plugin {
 	}
 
 	async fetchImageFromUrl(url: string): Promise<string> {
-		try {
-			const response = await requestUrl(url);
-			if (response.status !== 200) {
-				return '';
-			}
+		const html = await this.feedFetcher.fetchHtml(url);
+		if (!html) {
+			return '';
+		}
 
-			const html = response.text;
+		try {
 
 			// OGP画像を抽出
 			// <meta property="og:image" content="..." />
@@ -497,7 +471,7 @@ export default class LocalRssPlugin extends Plugin {
 
 			return '';
 		} catch (error) {
-			console.error(`Error fetching image from ${url}:`, error);
+			console.error(`Error parsing OGP image from ${url}:`, error);
 			return '';
 		}
 	}
