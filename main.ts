@@ -6,6 +6,7 @@ import { escapeYamlValue } from './src/utils/yamlFormatter';
 import { prepareTemplate, renderTemplate } from './src/utils/templateEngine';
 import { XmlNormalizer } from './src/adapters/parsers/XmlNormalizer';
 import { FeedFetcher } from './src/adapters/http/FeedFetcher';
+import { ImageExtractor } from './src/services/ImageExtractor';
 import {
 	Feed,
 	LocalRssSettings,
@@ -21,12 +22,14 @@ export default class LocalRssPlugin extends Plugin {
 	settings: LocalRssSettings;
 	updateIntervalId: number | null = null;
 	private feedFetcher: FeedFetcher;
+	private imageExtractor: ImageExtractor;
 
 	async onload() {
 		await this.loadSettings();
 
-		// アダプターの初期化
+		// アダプターとサービスの初期化
 		this.feedFetcher = new FeedFetcher();
+		this.imageExtractor = new ImageExtractor(this.feedFetcher);
 
 		this.addRibbonIcon('rss', t('updateRssFeeds'), (evt: MouseEvent) => {
 			this.updateFeeds();
@@ -154,11 +157,11 @@ export default class LocalRssPlugin extends Plugin {
 		rssItem.categories = this.normalizeCategories(item.category);
 
 		if (this.settings.includeImages) {
-			rssItem.imageUrl = this.extractImageUrl(item);
+			rssItem.imageUrl = this.imageExtractor.extractFromItem(item);
 
 			// RSSフィードに画像がない場合、リンク先から取得
 			if (!rssItem.imageUrl && this.settings.fetchImageFromLink && rssItem.link) {
-				rssItem.imageUrl = await this.fetchImageFromUrl(rssItem.link);
+				rssItem.imageUrl = await this.imageExtractor.fetchFromUrl(rssItem.link);
 			}
 		}
 
@@ -236,11 +239,11 @@ export default class LocalRssPlugin extends Plugin {
 		rssItem.categories = this.normalizeCategories(item.category);
 
 		if (this.settings.includeImages) {
-			rssItem.imageUrl = this.extractImageUrl(item);
+			rssItem.imageUrl = this.imageExtractor.extractFromItem(item);
 
 			// RSSフィードに画像がない場合、リンク先から取得
 			if (!rssItem.imageUrl && this.settings.fetchImageFromLink && rssItem.link) {
-				rssItem.imageUrl = await this.fetchImageFromUrl(rssItem.link);
+				rssItem.imageUrl = await this.imageExtractor.fetchFromUrl(rssItem.link);
 			}
 		}
 
@@ -371,111 +374,6 @@ export default class LocalRssPlugin extends Plugin {
 
 		return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 	}
-
-	extractImageUrl(item: RssFeedItem | AtomFeedItem): string {
-		if ('media:content' in item || 'media:thumbnail' in item || 'enclosure' in item) {
-			const rssItem = item as RssFeedItem;
-
-			if (rssItem['media:content']) {
-				const mediaContent = rssItem['media:content'];
-				if (typeof mediaContent === 'string') {
-					return mediaContent;
-				} else if (mediaContent.$ && mediaContent.$.url) {
-					return mediaContent.$.url;
-				}
-			}
-
-			if (rssItem['media:thumbnail']) {
-				const mediaThumbnail = rssItem['media:thumbnail'];
-				if (typeof mediaThumbnail === 'string') {
-					return mediaThumbnail;
-				} else if (mediaThumbnail.$ && mediaThumbnail.$.url) {
-					return mediaThumbnail.$.url;
-				}
-			}
-
-			if (rssItem.enclosure) {
-				const enclosure = rssItem.enclosure;
-				let enclosureUrl = '';
-
-				if (typeof enclosure === 'string') {
-					enclosureUrl = enclosure;
-				} else if (enclosure.$ && enclosure.$.url) {
-					enclosureUrl = enclosure.$.url;
-				}
-
-				if (enclosureUrl) {
-					if (enclosureUrl.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i) ||
-					    enclosureUrl.includes('cloudinary.com') ||
-					    enclosureUrl.includes('imgur.com') ||
-					    enclosureUrl.includes('googleusercontent.com')) {
-						return enclosureUrl;
-					}
-					if (typeof enclosure === 'object' && enclosure.$ && enclosure.$.type && enclosure.$.type.startsWith('image/')) {
-						return enclosureUrl;
-					}
-				}
-			}
-		}
-
-		let content = '';
-		if ('content:encoded' in item) {
-			content = (item as RssFeedItem)['content:encoded'] || (item as RssFeedItem).description || '';
-		} else if ('content' in item) {
-			const atomItem = item as AtomFeedItem;
-			// xml2jsがオブジェクトとして返す場合に対応
-			content = XmlNormalizer.normalizeValue(atomItem.content) || XmlNormalizer.normalizeValue(atomItem.summary) || '';
-		}
-
-		if (content && typeof content === 'string') {
-			const match = /<img.*?src=["'](.*?)["']/.exec(content);
-			if (match && match[1]) {
-				return match[1];
-			}
-		}
-
-		return '';
-	}
-
-	async fetchImageFromUrl(url: string): Promise<string> {
-		const html = await this.feedFetcher.fetchHtml(url);
-		if (!html) {
-			return '';
-		}
-
-		try {
-
-			// OGP画像を抽出
-			// <meta property="og:image" content="..." />
-			const ogImageMatch1 = /<meta\s+property=["']og:image["']\s+content=["'](.*?)["']/i.exec(html);
-			if (ogImageMatch1 && ogImageMatch1[1]) {
-				return ogImageMatch1[1];
-			}
-
-			// <meta content="..." property="og:image" />
-			const ogImageMatch2 = /<meta\s+content=["'](.*?)["']\s+property=["']og:image["']/i.exec(html);
-			if (ogImageMatch2 && ogImageMatch2[1]) {
-				return ogImageMatch2[1];
-			}
-
-			// twitter:image も試す
-			const twitterImageMatch1 = /<meta\s+name=["']twitter:image["']\s+content=["'](.*?)["']/i.exec(html);
-			if (twitterImageMatch1 && twitterImageMatch1[1]) {
-				return twitterImageMatch1[1];
-			}
-
-			const twitterImageMatch2 = /<meta\s+content=["'](.*?)["']\s+name=["']twitter:image["']/i.exec(html);
-			if (twitterImageMatch2 && twitterImageMatch2[1]) {
-				return twitterImageMatch2[1];
-			}
-
-			return '';
-		} catch (error) {
-			console.error(`Error parsing OGP image from ${url}:`, error);
-			return '';
-		}
-	}
-
 
 	async deleteOldFiles(folderPath: string) {
 		try {
