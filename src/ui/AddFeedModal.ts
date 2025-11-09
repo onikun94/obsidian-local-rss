@@ -1,5 +1,5 @@
 import { App, Modal, Notice, Setting } from 'obsidian';
-import { t } from '../../localization';
+import { t } from '../adapters/i18n/localization';
 import { LocalRssSettings } from '../types';
 
 /**

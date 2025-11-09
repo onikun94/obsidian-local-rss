@@ -1,5 +1,5 @@
 import { Plugin } from 'obsidian';
-import { t } from './localization';
+import { t } from './src/adapters/i18n/localization';
 import { FeedFetcher } from './src/adapters/http/FeedFetcher';
 import { ImageExtractor } from './src/services/ImageExtractor';
 import { UpdateFeeds } from './src/usecases/UpdateFeeds';

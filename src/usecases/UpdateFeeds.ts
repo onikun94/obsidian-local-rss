@@ -7,7 +7,7 @@ import { XmlNormalizer } from '../adapters/parsers/XmlNormalizer';
 import { stripHtml, htmlToMarkdown } from '../utils/htmlProcessor';
 import { escapeYamlValue } from '../utils/yamlFormatter';
 import { prepareTemplate, renderTemplate } from '../utils/templateEngine';
-import { t } from '../../localization';
+import { t } from '../adapters/i18n/localization';
 import { normalizePath, sanitizeHTMLToDom } from 'obsidian';
 
 /**

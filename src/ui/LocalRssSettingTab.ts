@@ -1,5 +1,5 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
-import { t } from '../../localization';
+import { t } from '../adapters/i18n/localization';
 import { LocalRssSettings } from '../types';
 import { AddFeedModal } from './AddFeedModal';
 
