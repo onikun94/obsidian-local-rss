@@ -21,7 +21,7 @@ export default {
 	fileNameTemplateDesc:
 		"Modèle pour les noms des articles. Les variables {{title}} (titre) et {{published}} (date de publication) sont disponibles",
 	contentTemplate: "Modèle de contenu",
-	contentTemplateDesc: "Modèle pour les articles incluant les propritétés",
+	contentTemplateDesc: "Modèle pour les articles incluant les propriétés",
 	availableVariables: "Variables disponibles",
 	varTitle: "Titre de l'article",
 	varLink: "URL de l'article original",
