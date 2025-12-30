@@ -210,6 +210,11 @@ export class UpdateFeeds {
 	 * RSSアイテムをMarkdownファイルとして保存
 	 */
 	private async saveRssItem(rssItem: RssItem, folderPath: string): Promise<void> {
+		// URLベースの重複チェック
+		if (rssItem.link && await this.isArticleAlreadySaved(rssItem.link, folderPath)) {
+			return; // 既に保存済みの記事はスキップ
+		}
+
 		let fileName = this.settings.fileNameTemplate
 			.replace(/{{title}}/g, rssItem.title.trim())
 			.replace(/{{published}}/g, this.formatDateTime(new Date(rssItem.pubDate)));
@@ -338,5 +343,44 @@ export class UpdateFeeds {
 		});
 
 		return div.innerHTML;
+	}
+
+	/**
+	 * 既存記事の重複チェック（URLベース）
+	 * 指定されたフォルダ内の全Markdownファイルから`link`フィールドを読み取り、
+	 * 同じURLの記事が既に保存されているかをチェック
+	 */
+	private async isArticleAlreadySaved(link: string, folderPath: string): Promise<boolean> {
+		try {
+			const folder = this.vault.getAbstractFileByPath(folderPath);
+			if (!folder || !(folder instanceof TFolder)) {
+				return false;
+			}
+
+			const files = folder.children.filter(
+				file => file instanceof TFile && file.extension === 'md'
+			) as TFile[];
+
+			for (const file of files) {
+				try {
+					const fileContent = await this.vault.read(file);
+					const linkMatch = fileContent.match(/link: (.*?)$/m);
+
+					if (linkMatch && linkMatch[1]) {
+						const existingLink = linkMatch[1].trim();
+						if (existingLink === link) {
+							return true;
+						}
+					}
+				} catch (e) {
+					console.error(`Error reading file: ${file.path}`, e);
+				}
+			}
+
+			return false;
+		} catch (error) {
+			console.error('Error checking for duplicate articles:', error);
+			return false;
+		}
 	}
 }
