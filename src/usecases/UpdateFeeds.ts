@@ -211,10 +211,10 @@ export class UpdateFeeds {
 	 */
 	private async saveRssItem(rssItem: RssItem, folderPath: string): Promise<void> {
 		let fileName = this.settings.fileNameTemplate
-			.replace(/{{title}}/g, rssItem.title)
+			.replace(/{{title}}/g, rssItem.title.trim())
 			.replace(/{{published}}/g, this.formatDateTime(new Date(rssItem.pubDate)));
 
-		fileName = fileName.replace(/[\\/:*?"<>|]/g, '-');
+		fileName = fileName.replace(/[\\/:*?"<>|]/g, '-').trim();
 		fileName = normalizePath(`${folderPath}/${fileName}.md`);
 
 		const existingFile = this.vault.getAbstractFileByPath(fileName);
