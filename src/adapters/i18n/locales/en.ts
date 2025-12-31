@@ -62,8 +62,13 @@ export default {
 	
 	// Buttons
 	addFeed: 'Add feed',
+	editFeed: 'Edit feed',
+	deleteFeed: 'Delete feed',
+	save: 'Save',
 	cancel: 'Cancel',
 	updateNow: 'Update now',
+	savedFeed: 'Saved feed: %0',
+	errorSavingFeed: 'Failed to save feed',
 	
 	// Settings header
 	rssFeedDownloaderSettings: 'RSS feed downloader settings',

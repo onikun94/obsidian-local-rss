@@ -64,8 +64,13 @@ const ja: Partial<typeof en> = {
 	
 	// Buttons
 	addFeed: 'フィードを追加',
+	editFeed: 'フィードを編集',
+	deleteFeed: 'フィードを削除',
+	save: '保存',
 	cancel: 'キャンセル',
 	updateNow: '今すぐ更新',
+	savedFeed: 'フィードを保存しました: %0',
+	errorSavingFeed: 'フィードの保存に失敗しました',
 	
 	// Settings header
 	rssFeedDownloaderSettings: 'RSSフィードダウンローダー設定',

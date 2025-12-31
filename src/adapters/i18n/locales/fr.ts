@@ -67,8 +67,13 @@ export default {
 
 	// Buttons
 	addFeed: 'Ajouter un flux',
+	editFeed: 'Modifier le flux',
+	deleteFeed: 'Supprimer le flux',
+	save: 'Enregistrer',
 	cancel: 'Annuler',
 	updateNow: 'Mettre à jour',
+	savedFeed: 'Flux enregistré: %0',
+	errorSavingFeed: 'Échec de l\'enregistrement du flux',
 
 	// Settings header
 	rssFeedDownloaderSettings: 'Paramètres du téléchargement des flux RSS',
