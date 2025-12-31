@@ -2,6 +2,7 @@ import { App, PluginSettingTab, Setting } from 'obsidian';
 import { t } from '../adapters/i18n/localization';
 import { LocalRssSettings } from '../types';
 import { AddFeedModal } from './AddFeedModal';
+import { EditFeedModal } from './EditFeedModal';
 
 /**
  * RSS設定タブ
@@ -203,8 +204,21 @@ export class LocalRssSettingTab extends PluginSettingTab {
 				}));
 
 			setting.addButton(button => button
+				.setIcon('pencil')
+				.setTooltip(t('editFeed'))
+				.onClick(() => {
+					new EditFeedModal(
+						this.app,
+						this.settings,
+						index,
+						this.onSaveSettings,
+						() => this.display()
+					).open();
+				}));
+
+			setting.addButton(button => button
 				.setIcon('trash')
-				.setTooltip(t('cancel'))
+				.setTooltip(t('deleteFeed'))
 				.onClick(async () => {
 					this.settings.feeds.splice(index, 1);
 					await this.onSaveSettings();
