@@ -24,6 +24,9 @@ export class EditFeedModal extends Modal {
 		onDisplayRefresh: () => void
 	) {
 		super(app);
+		if (feedIndex < 0 || feedIndex >= settings.feeds.length) {
+			throw new Error(`Invalid feed index: ${feedIndex}`);
+		}
 		this.settings = settings;
 		this.feedIndex = feedIndex;
 		this.feed = settings.feeds[feedIndex];
@@ -78,17 +81,24 @@ export class EditFeedModal extends Modal {
 							return;
 						}
 
-						this.settings.feeds[this.feedIndex] = {
-							...this.feed,
-							name,
-							url,
-							folder
-						};
+						const originalFeed = this.feed;
+						try {
+							this.settings.feeds[this.feedIndex] = {
+								...this.feed,
+								name,
+								url,
+								folder
+							};
 
-						await this.onSave();
-						new Notice(t('savedFeed', name));
-						this.close();
-						this.onDisplayRefresh();
+							await this.onSave();
+							new Notice(t('savedFeed', name));
+							this.close();
+							this.onDisplayRefresh();
+						} catch (error) {
+							this.settings.feeds[this.feedIndex] = originalFeed;
+							console.error('Failed to save feed settings:', error);
+							new Notice(t('errorSavingFeed'));
+						}
 					});
 			})
 			.addButton(button => {

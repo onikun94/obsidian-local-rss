@@ -68,6 +68,7 @@ export default {
 	cancel: 'Cancel',
 	updateNow: 'Update now',
 	savedFeed: 'Saved feed: %0',
+	errorSavingFeed: 'Failed to save feed',
 	
 	// Settings header
 	rssFeedDownloaderSettings: 'RSS feed downloader settings',
