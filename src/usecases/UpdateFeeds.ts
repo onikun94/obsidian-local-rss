@@ -28,7 +28,7 @@ export class UpdateFeeds {
 	async execute(): Promise<void> {
 		new Notice(t('updatingRssFeeds'));
 
-		const folderPath = this.settings.folderPath;
+		const folderPath = normalizePath(this.settings.folderPath);
 		const folder = this.vault.getAbstractFileByPath(folderPath);
 		if (!folder) {
 			await this.vault.createFolder(folderPath);
@@ -56,7 +56,7 @@ export class UpdateFeeds {
 		const parser = new xml2js.Parser({ explicitArray: false });
 		const result = await parser.parseStringPromise(xml);
 
-		const feedFolderPath = `${baseFolderPath}/${feed.folder || feed.name}`;
+		const feedFolderPath = normalizePath(`${baseFolderPath}/${feed.folder || feed.name}`);
 		const feedFolder = this.vault.getAbstractFileByPath(feedFolderPath);
 		if (!feedFolder) {
 			await this.vault.createFolder(feedFolderPath);
