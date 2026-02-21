@@ -1,12 +1,11 @@
 import { Notice, Vault, TFile, TFolder } from 'obsidian';
 import * as xml2js from 'xml2js';
-import { Feed, LocalRssSettings, RssFeedItem, AtomFeedItem, AtomFeed, RssItem } from '../types';
+import { Feed, LocalRssSettings, RssItem } from '../types';
 import { FeedFetcher } from '../adapters/http/FeedFetcher';
 import { ImageExtractor } from '../services/ImageExtractor';
-import { XmlNormalizer } from '../adapters/parsers/XmlNormalizer';
-import { stripHtml, htmlToMarkdown } from '../utils/htmlProcessor';
-import { escapeYamlValue } from '../utils/yamlFormatter';
-import { prepareTemplate, renderTemplate } from '../utils/templateEngine';
+import { RssItemBuilder } from '../services/RssItemBuilder';
+import { FileNameGenerator } from '../services/FileNameGenerator';
+import { ArticleRenderer } from '../services/ArticleRenderer';
 import { t } from '../adapters/i18n/localization';
 import { normalizePath, sanitizeHTMLToDom } from 'obsidian';
 
@@ -15,6 +14,10 @@ import { normalizePath, sanitizeHTMLToDom } from 'obsidian';
  * RSS/Atomフィードを取得・処理・保存するオーケストレーション
  */
 export class UpdateFeeds {
+	private rssItemBuilder = new RssItemBuilder();
+	private fileNameGenerator = new FileNameGenerator();
+	private articleRenderer = new ArticleRenderer();
+
 	constructor(
 		private vault: Vault,
 		private settings: LocalRssSettings,
@@ -70,7 +73,9 @@ export class UpdateFeeds {
 			if (atomFeed && atomFeed.entry) {
 				const items = Array.isArray(atomFeed.entry) ? atomFeed.entry : [atomFeed.entry];
 				for (const item of items) {
-					await this.processAtomItem(item, atomFeed, feed, feedFolderPath);
+					const rssItem = this.rssItemBuilder.fromAtomItem(item, atomFeed, feed);
+					await this.enrichWithImage(rssItem, item);
+					await this.saveRssItem(rssItem, feedFolderPath);
 				}
 			} else {
 				new Notice(t('unsupportedFeedFormat', feed.name));
@@ -81,12 +86,27 @@ export class UpdateFeeds {
 		// RSS feed
 		const items = Array.isArray(channel.item) ? channel.item : [channel.item];
 		for (const item of items) {
-			await this.processRssItem(item, feed, feedFolderPath);
+			const rssItem = this.rssItemBuilder.fromRssItem(item, feed);
+			await this.enrichWithImage(rssItem, item);
+			await this.saveRssItem(rssItem, feedFolderPath);
 		}
 
 		// 古いファイルを削除
 		if (this.settings.autoDeleteEnabled) {
 			await this.deleteOldFiles(feedFolderPath);
+		}
+	}
+
+	/**
+	 * 画像URLでRssItemを補完
+	 */
+	private async enrichWithImage(rssItem: RssItem, originalItem: unknown): Promise<void> {
+		if (!this.settings.includeImages) return;
+
+		rssItem.imageUrl = this.imageExtractor.extractFromItem(originalItem as Parameters<ImageExtractor['extractFromItem']>[0]);
+
+		if (!rssItem.imageUrl && this.settings.fetchImageFromLink && rssItem.link) {
+			rssItem.imageUrl = await this.imageExtractor.fetchFromUrl(rssItem.link);
 		}
 	}
 
@@ -145,179 +165,33 @@ export class UpdateFeeds {
 	}
 
 	/**
-	 * RSSアイテムを処理
-	 */
-	private async processRssItem(item: RssFeedItem, feed: Feed, folderPath: string): Promise<void> {
-		const rssItem: RssItem = {
-			title: item.title || 'Untitled',
-			description: stripHtml(item.description || '', 200),
-			content: item['content:encoded'] || item.description || '',
-			link: item.link || '',
-			pubDate: item.pubDate || item.published || new Date().toISOString(),
-			author: item.author || item['dc:creator'] || feed.name,
-			categories: this.normalizeCategories(item.category),
-			imageUrl: '',
-			savedDate: new Date().toISOString()
-		};
-
-		// 画像抽出
-		if (this.settings.includeImages) {
-			rssItem.imageUrl = this.imageExtractor.extractFromItem(item);
-
-			if (!rssItem.imageUrl && this.settings.fetchImageFromLink && rssItem.link) {
-				rssItem.imageUrl = await this.imageExtractor.fetchFromUrl(rssItem.link);
-			}
-		}
-
-		await this.saveRssItem(rssItem, folderPath);
-	}
-
-	/**
-	 * Atomアイテムを処理
-	 */
-	private async processAtomItem(item: AtomFeedItem, atomFeed: AtomFeed, feed: Feed, folderPath: string): Promise<void> {
-		const title = XmlNormalizer.normalizeValue(item.title);
-		const summary = XmlNormalizer.normalizeValue(item.summary);
-		const content = XmlNormalizer.normalizeValue(item.content);
-		const link = XmlNormalizer.normalizeAtomLink(item.link);
-		const author = XmlNormalizer.normalizeAtomAuthor(item.author, XmlNormalizer.normalizeValue(atomFeed.title));
-
-		const rssItem: RssItem = {
-			title: title || 'Untitled',
-			description: stripHtml(summary, 200),
-			content: content || summary,
-			link: link,
-			pubDate: item.published || item.updated || new Date().toISOString(),
-			author: author,
-			categories: this.normalizeCategories(item.category),
-			imageUrl: '',
-			savedDate: new Date().toISOString()
-		};
-
-		// 画像抽出
-		if (this.settings.includeImages) {
-			rssItem.imageUrl = this.imageExtractor.extractFromItem(item);
-
-			if (!rssItem.imageUrl && this.settings.fetchImageFromLink && rssItem.link) {
-				rssItem.imageUrl = await this.imageExtractor.fetchFromUrl(rssItem.link);
-			}
-		}
-
-		await this.saveRssItem(rssItem, folderPath);
-	}
-
-	/**
 	 * RSSアイテムをMarkdownファイルとして保存
 	 */
 	private async saveRssItem(rssItem: RssItem, folderPath: string): Promise<void> {
 		// URLベースの重複チェック
 		if (rssItem.link && await this.isArticleAlreadySaved(rssItem.link, folderPath)) {
-			return; // 既に保存済みの記事はスキップ
+			return;
 		}
 
-		let fileName = this.settings.fileNameTemplate
-			.replace(/{{title}}/g, rssItem.title.trim())
-			.replace(/{{published}}/g, this.formatDateTime(new Date(rssItem.pubDate)));
-
-		fileName = fileName.replace(/[\\/:*?"<>|]/g, '-').trim();
-		fileName = normalizePath(`${folderPath}/${fileName}.md`);
+		const fileNameBase = this.fileNameGenerator.generate(
+			this.settings.fileNameTemplate,
+			rssItem.title,
+			rssItem.pubDate
+		);
+		const fileName = normalizePath(`${folderPath}/${fileNameBase}.md`);
 
 		const existingFile = this.vault.getAbstractFileByPath(fileName);
 		if (existingFile) {
-			return; // 既に存在する場合はスキップ
+			return;
 		}
-
-		const pubDate = new Date(rssItem.pubDate);
-		const fullDateTime = this.formatDateTime(pubDate);
-
-		const savedDate = new Date(rssItem.savedDate);
-		const fullSavedDateTime = this.formatDateTime(savedDate);
-
-		const escapedTitle = escapeYamlValue(XmlNormalizer.normalizeValue(rssItem.title));
-		const escapedAuthor = escapeYamlValue(XmlNormalizer.normalizeValue(rssItem.author));
-
-		const descriptionCleaned = rssItem.description.replace(/\r?\n/g, ' ').trim();
-		const descriptionShort = descriptionCleaned.substring(0, 50) + (descriptionCleaned.length > 50 ? '...' : '');
-		const escapedDescription = escapeYamlValue(descriptionCleaned);
-		const escapedDescriptionShort = escapeYamlValue(descriptionShort);
 
 		let processedContent = rssItem.content;
 		if (this.settings.imageWidth && this.settings.imageWidth !== '100%') {
 			processedContent = this.resizeImagesInContent(processedContent);
 		}
-		processedContent = htmlToMarkdown(processedContent);
 
-		const template = prepareTemplate(this.settings.template, rssItem);
-
-		const fileContent = renderTemplate(template, {
-			title: escapedTitle,
-			link: rssItem.link,
-			author: escapedAuthor,
-			publishedTime: fullDateTime,
-			savedTime: fullSavedDateTime,
-			image: rssItem.imageUrl,
-			description: escapedDescription,
-			descriptionShort: escapedDescriptionShort,
-			tags: rssItem.categories.map(c => `#${c}`).join(' '),
-			content: processedContent
-		});
-
+		const fileContent = this.articleRenderer.render(rssItem, this.settings.template, processedContent);
 		await this.vault.create(fileName, fileContent);
-	}
-
-	/**
-	 * カテゴリを正規化
-	 */
-	private normalizeCategories(categoryField: unknown): string[] {
-		if (!categoryField) {
-			return [];
-		}
-
-		const categories = Array.isArray(categoryField) ? categoryField : [categoryField];
-		return categories
-			.map((category: unknown) => this.extractCategoryText(category))
-			.filter((category: string): category is string => category.length > 0);
-	}
-
-	/**
-	 * カテゴリテキストを抽出
-	 */
-	private extractCategoryText(category: unknown): string {
-		if (category == null) {
-			return '';
-		}
-
-		if (typeof category === 'string') {
-			return category.trim();
-		}
-
-		if (typeof category === 'object') {
-			const categoryRecord = category as Record<string, unknown>;
-
-			if (typeof categoryRecord['_'] === 'string') {
-				return (categoryRecord['_'] as string).trim();
-			}
-
-			if (typeof categoryRecord['term'] === 'string') {
-				return (categoryRecord['term'] as string).trim();
-			}
-		}
-
-		return '';
-	}
-
-	/**
-	 * 日時フォーマット
-	 */
-	private formatDateTime(date: Date): string {
-		const year = date.getFullYear();
-		const month = String(date.getMonth() + 1).padStart(2, '0');
-		const day = String(date.getDate()).padStart(2, '0');
-		const hours = String(date.getHours()).padStart(2, '0');
-		const minutes = String(date.getMinutes()).padStart(2, '0');
-		const seconds = String(date.getSeconds()).padStart(2, '0');
-
-		return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 	}
 
 	/**
@@ -347,8 +221,6 @@ export class UpdateFeeds {
 
 	/**
 	 * 既存記事の重複チェック（URLベース）
-	 * 指定されたフォルダ内の全Markdownファイルから`link`フィールドを読み取り、
-	 * 同じURLの記事が既に保存されているかをチェック
 	 */
 	private async isArticleAlreadySaved(link: string, folderPath: string): Promise<boolean> {
 		try {
