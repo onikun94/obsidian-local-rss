@@ -81,7 +81,13 @@ const ja: Partial<typeof en> = {
 	
 	// Date options
 	publishedDate: '公開日',
-	savedDate: '保存日'
+	savedDate: '保存日',
+
+	// Download history
+	downloadHistory: 'ダウンロード履歴',
+	downloadHistoryDesc: '保存済み記事URLの件数: %0',
+	clearDownloadHistory: '履歴をクリア',
+	downloadHistoryCleared: 'ダウンロード履歴をクリアしました'
 };
 
 export default ja;

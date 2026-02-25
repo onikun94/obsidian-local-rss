@@ -79,5 +79,11 @@ export default {
 	
 	// Date options
 	publishedDate: 'Published date',
-	savedDate: 'Saved date'
+	savedDate: 'Saved date',
+
+	// Download history
+	downloadHistory: 'Download history',
+	downloadHistoryDesc: 'Number of downloaded article URLs stored: %0',
+	clearDownloadHistory: 'Clear history',
+	downloadHistoryCleared: 'Download history cleared'
 };

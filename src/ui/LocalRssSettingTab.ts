@@ -1,6 +1,7 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import { t } from '../adapters/i18n/localization';
 import { LocalRssSettings } from '../types';
+import { ArticleHistoryService } from '../services/ArticleHistoryService';
 import { AddFeedModal } from './AddFeedModal';
 import { EditFeedModal } from './EditFeedModal';
 
@@ -13,6 +14,7 @@ export class LocalRssSettingTab extends PluginSettingTab {
 	private onSaveSettings: () => Promise<void>;
 	private onUpdateFeeds: () => Promise<void>;
 	private onStartUpdateInterval: () => void;
+	private articleHistory: ArticleHistoryService;
 
 	constructor(
 		app: App,
@@ -20,13 +22,15 @@ export class LocalRssSettingTab extends PluginSettingTab {
 		settings: LocalRssSettings,
 		onSaveSettings: () => Promise<void>,
 		onUpdateFeeds: () => Promise<void>,
-		onStartUpdateInterval: () => void
+		onStartUpdateInterval: () => void,
+		articleHistory: ArticleHistoryService
 	) {
 		super(app, plugin);
 		this.settings = settings;
 		this.onSaveSettings = onSaveSettings;
 		this.onUpdateFeeds = onUpdateFeeds;
 		this.onStartUpdateInterval = onStartUpdateInterval;
+		this.articleHistory = articleHistory;
 	}
 
 	display(): void {
@@ -185,6 +189,18 @@ export class LocalRssSettingTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					this.settings.autoDeleteBasedOn = value;
 					await this.onSaveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName(t('downloadHistory'))
+			.setDesc(t('downloadHistoryDesc', String(this.articleHistory.size)))
+			.addButton(button => button
+				.setButtonText(t('clearDownloadHistory'))
+				.onClick(async () => {
+					this.articleHistory.clearHistory();
+					await this.onSaveSettings();
+					new Notice(t('downloadHistoryCleared'));
+					this.display();
 				}));
 
 		new Setting(containerEl)
