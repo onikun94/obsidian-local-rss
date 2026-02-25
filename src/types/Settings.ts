@@ -5,6 +5,11 @@ export interface Feed {
 	enabled: boolean;
 }
 
+export interface DownloadHistoryEntry {
+	link: string;
+	downloadedAt: number;
+}
+
 export interface LocalRssSettings {
 	feeds: Feed[];
 	folderPath: string;
@@ -20,6 +25,7 @@ export interface LocalRssSettings {
 	autoDeleteDays: number;
 	autoDeleteTimeUnit: string;
 	autoDeleteBasedOn: string;
+	downloadHistory: DownloadHistoryEntry[];
 }
 
 export const DEFAULT_SETTINGS: LocalRssSettings = {
@@ -36,5 +42,6 @@ export const DEFAULT_SETTINGS: LocalRssSettings = {
 	autoDeleteEnabled: false,
 	autoDeleteDays: 30,
 	autoDeleteTimeUnit: 'days',
-	autoDeleteBasedOn: 'saved'
+	autoDeleteBasedOn: 'saved',
+	downloadHistory: []
 };
