@@ -66,7 +66,15 @@ export class UpdateFeeds {
 		}
 
 		// RSS or Atom判定
-		const channel = result.rss?.channel;
+		let channel = result.rss?.channel;
+		if (!channel && result['rdf:RDF']) {
+			channel = result['rdf:RDF'].channel;
+			if (channel) {
+				// RSS 1.0 (RDF) では item は channel の外にあるため、手動でマッピング
+				channel.item = result['rdf:RDF'].item;
+			}
+		}
+
 		if (!channel) {
 			// Atom feed
 			const atomFeed = result.feed;
