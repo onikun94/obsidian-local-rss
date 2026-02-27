@@ -73,3 +73,71 @@ If your plugin does not need CSS, delete this file.
   font-size: 0.80em;
   color: var(--text-muted);
 }
+
+/* EditFeedModal セクション区切り */
+.local-rss-edit-feed-modal .local-rss-feed-section {
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: var(--size-4-3);
+  margin-top: var(--size-4-3);
+  margin-bottom: var(--size-4-3);
+}
+
+/* モーダル内テンプレートのテキストエリア（全幅） */
+.local-rss-edit-feed-modal .local-rss-modal-template-setting {
+  flex-direction: column;
+}
+
+.local-rss-edit-feed-modal .local-rss-modal-template-setting .setting-item-control {
+  width: 100%;
+}
+
+.local-rss-edit-feed-modal .local-rss-modal-template-textarea {
+  width: 100%;
+  height: 160px;
+  font-family: var(--font-monospace);
+  font-size: var(--font-smallest);
+  resize: vertical;
+}
+
+/* モーダル内 変数リファレンス（折りたたみ） */
+.local-rss-edit-feed-modal .local-rss-modal-variables {
+  margin-bottom: var(--size-4-2);
+}
+
+.local-rss-edit-feed-modal .local-rss-modal-variables summary {
+  font-size: var(--font-smallest);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.local-rss-edit-feed-modal .local-rss-modal-variables-list {
+  margin-top: var(--size-4-1);
+}
+
+.local-rss-edit-feed-modal .local-rss-modal-variables-code {
+  font-size: var(--font-smallest);
+  color: var(--text-muted);
+  word-break: break-all;
+  line-height: 1.8;
+}
+
+/* モーダル内 展開された詳細設定のインデント */
+.local-rss-edit-feed-modal .local-rss-feed-template-details,
+.local-rss-edit-feed-modal .local-rss-feed-delete-details {
+  padding-left: var(--size-4-4);
+  border-left: 2px solid var(--background-modifier-border);
+  margin-top: var(--size-4-1);
+}
+
+/* カスタム設定インジケーター */
+.local-rss-custom-indicator {
+  display: inline-flex;
+  margin-left: var(--size-4-1);
+  color: var(--text-muted);
+  vertical-align: middle;
+}
+
+.local-rss-custom-indicator svg {
+  width: 14px;
+  height: 14px;
+}

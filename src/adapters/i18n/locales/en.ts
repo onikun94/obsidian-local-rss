@@ -85,5 +85,12 @@ export default {
 	downloadHistory: 'Download history',
 	downloadHistoryDesc: 'Number of downloaded article URLs stored: %0',
 	clearDownloadHistory: 'Clear history',
-	downloadHistoryCleared: 'Download history cleared'
+	downloadHistoryCleared: 'Download history cleared',
+
+	// Per-feed settings
+	useCustomTemplate: 'Use custom template',
+	useCustomTemplateDesc: 'Override the global content template for this feed. When off, the master setting is used.',
+	useCustomAutoDelete: 'Use custom auto-delete',
+	useCustomAutoDeleteDesc: 'Override the global auto-delete settings for this feed. When off, the master setting is used.',
+	customSettingsIndicator: 'Has custom settings'
 };

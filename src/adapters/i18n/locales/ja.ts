@@ -87,7 +87,14 @@ const ja: Partial<typeof en> = {
 	downloadHistory: 'ダウンロード履歴',
 	downloadHistoryDesc: '保存済み記事URLの件数: %0',
 	clearDownloadHistory: '履歴をクリア',
-	downloadHistoryCleared: 'ダウンロード履歴をクリアしました'
+	downloadHistoryCleared: 'ダウンロード履歴をクリアしました',
+
+	// Per-feed settings
+	useCustomTemplate: 'カスタムテンプレートを使用',
+	useCustomTemplateDesc: 'このフィード専用のコンテンツテンプレートを設定します。OFFの場合はマスター設定が適用されます。',
+	useCustomAutoDelete: 'カスタム削除設定を使用',
+	useCustomAutoDeleteDesc: 'このフィード専用の自動削除設定を使用します。OFFの場合はマスター設定が適用されます。',
+	customSettingsIndicator: 'カスタム設定あり'
 };
 
 export default ja;
