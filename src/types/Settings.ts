@@ -3,6 +3,20 @@ export interface Feed {
 	name: string;
 	folder: string;
 	enabled: boolean;
+	// フィード個別オーバーライド（undefinedならグローバル設定を使用）
+	customTemplate?: string;
+	customAutoDeleteEnabled?: boolean;
+	customAutoDeleteDays?: number;
+	customAutoDeleteTimeUnit?: string;
+	customAutoDeleteBasedOn?: string;
+}
+
+export interface ResolvedFeedSettings {
+	template: string;
+	autoDeleteEnabled: boolean;
+	autoDeleteDays: number;
+	autoDeleteTimeUnit: string;
+	autoDeleteBasedOn: string;
 }
 
 export interface DownloadHistoryEntry {
