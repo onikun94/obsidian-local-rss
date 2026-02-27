@@ -1,12 +1,13 @@
 import { Notice, Vault, TFile, TFolder } from 'obsidian';
 import * as xml2js from 'xml2js';
-import { Feed, LocalRssSettings, RssItem } from '../types';
+import { Feed, LocalRssSettings, ResolvedFeedSettings, RssItem } from '../types';
 import { FeedFetcher } from '../adapters/http/FeedFetcher';
 import { ImageExtractor } from '../services/ImageExtractor';
 import { ArticleHistoryService } from '../services/ArticleHistoryService';
 import { RssItemBuilder } from '../services/RssItemBuilder';
 import { FileNameGenerator } from '../services/FileNameGenerator';
 import { ArticleRenderer } from '../services/ArticleRenderer';
+import { FeedSettingsResolver } from '../services/FeedSettingsResolver';
 import { t } from '../adapters/i18n/localization';
 import { normalizePath, sanitizeHTMLToDom } from 'obsidian';
 
@@ -67,6 +68,8 @@ export class UpdateFeeds {
 			await this.vault.createFolder(feedFolderPath);
 		}
 
+		const resolved = FeedSettingsResolver.resolve(feed, this.settings);
+
 		// RSS or Atom判定
 		const channel = result.rss?.channel;
 		if (!channel) {
@@ -77,27 +80,25 @@ export class UpdateFeeds {
 				for (const item of items) {
 					const rssItem = this.rssItemBuilder.fromAtomItem(item, atomFeed, feed);
 					await this.enrichWithImage(rssItem, item);
-					await this.saveRssItem(rssItem, feedFolderPath);
+					await this.saveRssItem(rssItem, feedFolderPath, resolved.template);
 				}
 			} else {
 				new Notice(t('unsupportedFeedFormat', feed.name));
 			}
-			return;
+		} else {
+			// RSS feed
+			const items = Array.isArray(channel.item) ? channel.item : [channel.item];
+			for (const item of items) {
+				const rssItem = this.rssItemBuilder.fromRssItem(item, feed);
+				await this.enrichWithImage(rssItem, item);
+				await this.saveRssItem(rssItem, feedFolderPath, resolved.template);
+			}
 		}
 
-		// RSS feed
-		const items = Array.isArray(channel.item) ? channel.item : [channel.item];
-		for (const item of items) {
-			const rssItem = this.rssItemBuilder.fromRssItem(item, feed);
-			await this.enrichWithImage(rssItem, item);
-			await this.saveRssItem(rssItem, feedFolderPath);
-		}
-
-		// 古いファイル・履歴を削除
-		if (this.settings.autoDeleteEnabled) {
-			const cutoffDate = this.calcCutoffDate();
-			await this.deleteOldFiles(feedFolderPath, cutoffDate);
-			this.articleHistory.purgeOlderThan(cutoffDate);
+		// 古いファイル・履歴を削除（Atom/RSS共通）
+		if (resolved.autoDeleteEnabled) {
+			await this.deleteOldFiles(feedFolderPath, resolved);
+			this.articleHistory.purgeOlderThan(this.calcCutoffDate(resolved));
 		}
 		this.articleHistory.enforceCapLimit();
 	}
@@ -118,17 +119,17 @@ export class UpdateFeeds {
 	/**
 	 * 自動削除のカットオフ日時を計算
 	 */
-	private calcCutoffDate(): number {
-		if (this.settings.autoDeleteTimeUnit === 'minutes') {
-			return Date.now() - (this.settings.autoDeleteDays * 60 * 1000);
+	private calcCutoffDate(resolved: ResolvedFeedSettings): number {
+		if (resolved.autoDeleteTimeUnit === 'minutes') {
+			return Date.now() - (resolved.autoDeleteDays * 60 * 1000);
 		}
-		return Date.now() - (this.settings.autoDeleteDays * 24 * 60 * 60 * 1000);
+		return Date.now() - (resolved.autoDeleteDays * 24 * 60 * 60 * 1000);
 	}
 
 	/**
 	 * 古いファイルを削除
 	 */
-	private async deleteOldFiles(folderPath: string, cutoffDate: number): Promise<void> {
+	private async deleteOldFiles(folderPath: string, deleteSettings: ResolvedFeedSettings): Promise<void> {
 		try {
 			const folder = this.vault.getAbstractFileByPath(folderPath);
 			if (!folder || !(folder instanceof TFolder)) {
@@ -136,11 +137,18 @@ export class UpdateFeeds {
 			}
 			const files = folder.children.filter(file => file instanceof TFile && file.extension === 'md') as TFile[];
 
+			let cutoffDate: number;
+			if (deleteSettings.autoDeleteTimeUnit === 'minutes') {
+				cutoffDate = Date.now() - (deleteSettings.autoDeleteDays * 60 * 1000);
+			} else {
+				cutoffDate = Date.now() - (deleteSettings.autoDeleteDays * 24 * 60 * 60 * 1000);
+			}
+
 			for (const file of files) {
 				try {
 					const fileContent = await this.vault.read(file);
 
-					if (this.settings.autoDeleteBasedOn === 'publish_date') {
+					if (deleteSettings.autoDeleteBasedOn === 'publish_date') {
 						const publishedMatch = fileContent.match(/publish_date: (.*?)$/m);
 
 						if (publishedMatch && publishedMatch[1]) {
@@ -175,7 +183,7 @@ export class UpdateFeeds {
 	/**
 	 * RSSアイテムをMarkdownファイルとして保存
 	 */
-	private async saveRssItem(rssItem: RssItem, folderPath: string): Promise<void> {
+	private async saveRssItem(rssItem: RssItem, folderPath: string, template: string): Promise<void> {
 		// 履歴ベースの重複チェック
 		if (rssItem.link && this.articleHistory.hasBeenDownloaded(rssItem.link)) {
 			return;
@@ -198,7 +206,7 @@ export class UpdateFeeds {
 			processedContent = this.resizeImagesInContent(processedContent);
 		}
 
-		const fileContent = this.articleRenderer.render(rssItem, this.settings.template, processedContent);
+		const fileContent = this.articleRenderer.render(rssItem, template, processedContent);
 		await this.vault.create(fileName, fileContent);
 
 		if (rssItem.link) {
