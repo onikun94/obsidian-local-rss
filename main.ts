@@ -1,7 +1,8 @@
-import { Plugin } from 'obsidian';
+import { Plugin, TFile, TFolder, normalizePath } from 'obsidian';
 import { t } from './src/adapters/i18n/localization';
 import { FeedFetcher } from './src/adapters/http/FeedFetcher';
 import { ImageExtractor } from './src/services/ImageExtractor';
+import { ArticleHistoryService } from './src/services/ArticleHistoryService';
 import { UpdateFeeds } from './src/usecases/UpdateFeeds';
 import { LocalRssSettingTab } from './src/ui/LocalRssSettingTab';
 import {
@@ -14,6 +15,7 @@ export default class LocalRssPlugin extends Plugin {
 	updateIntervalId: number | null = null;
 	private feedFetcher: FeedFetcher;
 	private imageExtractor: ImageExtractor;
+	private articleHistory: ArticleHistoryService;
 	private updateFeedsUseCase: UpdateFeeds;
 
 	async onload() {
@@ -22,13 +24,18 @@ export default class LocalRssPlugin extends Plugin {
 		// アダプターとサービスの初期化
 		this.feedFetcher = new FeedFetcher();
 		this.imageExtractor = new ImageExtractor(this.feedFetcher);
+		this.articleHistory = new ArticleHistoryService(this.settings.downloadHistory);
+
+		// 既存記事のマイグレーション（初回のみ）
+		await this.migrateExistingArticlesToHistory();
 
 		// ユースケースの初期化
 		this.updateFeedsUseCase = new UpdateFeeds(
 			this.app.vault,
 			this.settings,
 			this.feedFetcher,
-			this.imageExtractor
+			this.imageExtractor,
+			this.articleHistory
 		);
 
 		this.addRibbonIcon('rss', t('updateRssFeeds'), (evt: MouseEvent) => {
@@ -41,7 +48,8 @@ export default class LocalRssPlugin extends Plugin {
 			this.settings,
 			this.saveSettings.bind(this),
 			this.updateFeeds.bind(this),
-			this.startUpdateInterval.bind(this)
+			this.startUpdateInterval.bind(this),
+			this.articleHistory
 		));
 
 		this.addCommand({
@@ -86,5 +94,49 @@ export default class LocalRssPlugin extends Plugin {
 
 		this.settings.lastUpdateTime = Date.now();
 		await this.saveSettings();
+	}
+
+	/**
+	 * 既存記事からリンクを抽出してダウンロード履歴にマイグレーション（初回のみ）
+	 */
+	private async migrateExistingArticlesToHistory(): Promise<void> {
+		if (this.settings.downloadHistory.length > 0) return;
+
+		const folderPath = normalizePath(this.settings.folderPath);
+		const folder = this.app.vault.getAbstractFileByPath(folderPath);
+		if (!folder || !(folder instanceof TFolder)) return;
+
+		const files: TFile[] = [];
+		const collectFiles = (f: TFolder) => {
+			for (const child of f.children) {
+				if (child instanceof TFile && child.extension === 'md') {
+					files.push(child);
+				} else if (child instanceof TFolder) {
+					collectFiles(child);
+				}
+			}
+		};
+		collectFiles(folder);
+
+		const entries: { link: string; downloadedAt: number }[] = [];
+		for (const file of files) {
+			try {
+				const content = await this.app.vault.read(file);
+				const linkMatch = content.match(/link: (.*?)$/m);
+				if (linkMatch && linkMatch[1]) {
+					const link = linkMatch[1].trim();
+					if (link) {
+						entries.push({ link, downloadedAt: file.stat.ctime });
+					}
+				}
+			} catch (e) {
+				console.error(`Error reading file for migration: ${file.path}`, e);
+			}
+		}
+
+		if (entries.length > 0) {
+			this.articleHistory.addMultipleToHistory(entries);
+			await this.saveSettings();
+		}
 	}
 }

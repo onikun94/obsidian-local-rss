@@ -85,4 +85,10 @@ export default {
 	// Date options
 	publishedDate: 'Date de publication',
 	savedDate: 'Date de sauvegarde',
+
+	// Download history
+	downloadHistory: 'Historique des téléchargements',
+	downloadHistoryDesc: 'Nombre d\'URLs d\'articles téléchargés stockés: %0',
+	clearDownloadHistory: 'Effacer l\'historique',
+	downloadHistoryCleared: 'Historique des téléchargements effacé',
 };

@@ -3,6 +3,7 @@ import * as xml2js from 'xml2js';
 import { Feed, LocalRssSettings, RssItem } from '../types';
 import { FeedFetcher } from '../adapters/http/FeedFetcher';
 import { ImageExtractor } from '../services/ImageExtractor';
+import { ArticleHistoryService } from '../services/ArticleHistoryService';
 import { RssItemBuilder } from '../services/RssItemBuilder';
 import { FileNameGenerator } from '../services/FileNameGenerator';
 import { ArticleRenderer } from '../services/ArticleRenderer';
@@ -22,7 +23,8 @@ export class UpdateFeeds {
 		private vault: Vault,
 		private settings: LocalRssSettings,
 		private feedFetcher: FeedFetcher,
-		private imageExtractor: ImageExtractor
+		private imageExtractor: ImageExtractor,
+		private articleHistory: ArticleHistoryService
 	) {}
 
 	/**
@@ -91,10 +93,13 @@ export class UpdateFeeds {
 			await this.saveRssItem(rssItem, feedFolderPath);
 		}
 
-		// 古いファイルを削除
+		// 古いファイル・履歴を削除
 		if (this.settings.autoDeleteEnabled) {
-			await this.deleteOldFiles(feedFolderPath);
+			const cutoffDate = this.calcCutoffDate();
+			await this.deleteOldFiles(feedFolderPath, cutoffDate);
+			this.articleHistory.purgeOlderThan(cutoffDate);
 		}
+		this.articleHistory.enforceCapLimit();
 	}
 
 	/**
@@ -111,22 +116,25 @@ export class UpdateFeeds {
 	}
 
 	/**
+	 * 自動削除のカットオフ日時を計算
+	 */
+	private calcCutoffDate(): number {
+		if (this.settings.autoDeleteTimeUnit === 'minutes') {
+			return Date.now() - (this.settings.autoDeleteDays * 60 * 1000);
+		}
+		return Date.now() - (this.settings.autoDeleteDays * 24 * 60 * 60 * 1000);
+	}
+
+	/**
 	 * 古いファイルを削除
 	 */
-	private async deleteOldFiles(folderPath: string): Promise<void> {
+	private async deleteOldFiles(folderPath: string, cutoffDate: number): Promise<void> {
 		try {
 			const folder = this.vault.getAbstractFileByPath(folderPath);
 			if (!folder || !(folder instanceof TFolder)) {
 				return;
 			}
 			const files = folder.children.filter(file => file instanceof TFile && file.extension === 'md') as TFile[];
-
-			let cutoffDate: number;
-			if (this.settings.autoDeleteTimeUnit === 'minutes') {
-				cutoffDate = Date.now() - (this.settings.autoDeleteDays * 60 * 1000);
-			} else {
-				cutoffDate = Date.now() - (this.settings.autoDeleteDays * 24 * 60 * 60 * 1000);
-			}
 
 			for (const file of files) {
 				try {
@@ -168,8 +176,8 @@ export class UpdateFeeds {
 	 * RSSアイテムをMarkdownファイルとして保存
 	 */
 	private async saveRssItem(rssItem: RssItem, folderPath: string): Promise<void> {
-		// URLベースの重複チェック
-		if (rssItem.link && await this.isArticleAlreadySaved(rssItem.link, folderPath)) {
+		// 履歴ベースの重複チェック
+		if (rssItem.link && this.articleHistory.hasBeenDownloaded(rssItem.link)) {
 			return;
 		}
 
@@ -192,6 +200,10 @@ export class UpdateFeeds {
 
 		const fileContent = this.articleRenderer.render(rssItem, this.settings.template, processedContent);
 		await this.vault.create(fileName, fileContent);
+
+		if (rssItem.link) {
+			this.articleHistory.addToHistory(rssItem.link);
+		}
 	}
 
 	/**
@@ -219,40 +231,4 @@ export class UpdateFeeds {
 		return div.innerHTML;
 	}
 
-	/**
-	 * 既存記事の重複チェック（URLベース）
-	 */
-	private async isArticleAlreadySaved(link: string, folderPath: string): Promise<boolean> {
-		try {
-			const folder = this.vault.getAbstractFileByPath(folderPath);
-			if (!folder || !(folder instanceof TFolder)) {
-				return false;
-			}
-
-			const files = folder.children.filter(
-				file => file instanceof TFile && file.extension === 'md'
-			) as TFile[];
-
-			for (const file of files) {
-				try {
-					const fileContent = await this.vault.read(file);
-					const linkMatch = fileContent.match(/link: (.*?)$/m);
-
-					if (linkMatch && linkMatch[1]) {
-						const existingLink = linkMatch[1].trim();
-						if (existingLink === link) {
-							return true;
-						}
-					}
-				} catch (e) {
-					console.error(`Error reading file: ${file.path}`, e);
-				}
-			}
-
-			return false;
-		} catch (error) {
-			console.error('Error checking for duplicate articles:', error);
-			return false;
-		}
-	}
 }
