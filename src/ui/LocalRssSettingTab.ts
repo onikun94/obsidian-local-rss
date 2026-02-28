@@ -1,7 +1,8 @@
-import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
+import { App, Notice, PluginSettingTab, Setting, setIcon } from 'obsidian';
 import { t } from '../adapters/i18n/localization';
 import { LocalRssSettings } from '../types';
 import { ArticleHistoryService } from '../services/ArticleHistoryService';
+import { FeedSettingsResolver } from '../services/FeedSettingsResolver';
 import { AddFeedModal } from './AddFeedModal';
 import { EditFeedModal } from './EditFeedModal';
 
@@ -208,9 +209,17 @@ export class LocalRssSettingTab extends PluginSettingTab {
 			.setHeading();
 
 		this.settings.feeds.forEach((feed, index) => {
+			const hasCustom = FeedSettingsResolver.hasCustomSettings(feed);
+			const feedName = hasCustom ? feed.name : feed.name;
 			const setting = new Setting(containerEl)
-				.setName(feed.name)
+				.setName(feedName)
 				.setDesc(feed.url);
+
+			if (hasCustom) {
+				const iconEl = setting.nameEl.createSpan({ cls: 'local-rss-custom-indicator' });
+				setIcon(iconEl, 'settings');
+				iconEl.setAttribute('aria-label', t('customSettingsIndicator'));
+			}
 
 			setting.addToggle(toggle => toggle
 				.setValue(feed.enabled)

@@ -86,9 +86,17 @@ export default {
 	publishedDate: 'Date de publication',
 	savedDate: 'Date de sauvegarde',
 
+
 	// Download history
 	downloadHistory: 'Historique des téléchargements',
 	downloadHistoryDesc: 'Nombre d\'URLs d\'articles téléchargés stockés: %0',
 	clearDownloadHistory: 'Effacer l\'historique',
 	downloadHistoryCleared: 'Historique des téléchargements effacé',
+
+	// Per-feed settings
+	useCustomTemplate: 'Utiliser un modèle personnalisé',
+	useCustomTemplateDesc: 'Remplacer le modèle de contenu global pour ce flux. Lorsque désactivé, le paramètre principal est utilisé.',
+	useCustomAutoDelete: 'Utiliser la suppression automatique personnalisée',
+	useCustomAutoDeleteDesc: 'Remplacer les paramètres de suppression automatique globaux pour ce flux. Lorsque désactivé, le paramètre principal est utilisé.',
+	customSettingsIndicator: 'Paramètres personnalisés',
 };
