@@ -5,6 +5,7 @@ export interface RssFeedItem {
 	link?: string;
 	pubDate?: string;
 	published?: string;
+	'dc:date'?: string;
 	author?: string;
 	'dc:creator'?: string;
 	category?: string | string[];

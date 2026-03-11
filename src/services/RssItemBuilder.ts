@@ -22,7 +22,7 @@ export class RssItemBuilder {
 			description: stripHtml(item.description || '', 200),
 			content: item['content:encoded'] || item.description || '',
 			link: item.link || '',
-			pubDate: item.pubDate || item.published || new Date().toISOString(),
+			pubDate: item.pubDate || item.published || item['dc:date'] || new Date().toISOString(),
 			author: item.author || item['dc:creator'] || feed.name,
 			categories: this.categoryNormalizer.normalize(item.category),
 			imageUrl: '',
