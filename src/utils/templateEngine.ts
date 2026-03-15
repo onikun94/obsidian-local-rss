@@ -1,5 +1,6 @@
 import { RssItem } from '../types';
 import { escapeYamlValue } from './yamlFormatter';
+import { formatDateTime } from './dateFormatter';
 
 /**
  * テンプレートの前処理
@@ -27,6 +28,8 @@ export interface TemplateData {
 	author: string;
 	publishedTime: string;
 	savedTime: string;
+	publishedDate: Date;
+	savedDate: Date;
 	image: string;
 	description: string;
 	descriptionShort: string;
@@ -45,7 +48,9 @@ export function renderTemplate(template: string, data: TemplateData): string {
 		.replace(/{{title}}/g, data.title)
 		.replace(/{{link}}/g, data.link)
 		.replace(/{{author}}/g, data.author)
+		.replace(/{{publishedTime\s*\|\s*date\(['"](.*?)['"]\)}}/g, (_, fmt) => formatDateTime(data.publishedDate, fmt))
 		.replace(/{{publishedTime}}/g, data.publishedTime)
+		.replace(/{{savedTime\s*\|\s*date\(['"](.*?)['"]\)}}/g, (_, fmt) => formatDateTime(data.savedDate, fmt))
 		.replace(/{{savedTime}}/g, data.savedTime)
 		.replace(/{{image}}/g, data.image)
 		.replace(/{{description}}/g, data.description)

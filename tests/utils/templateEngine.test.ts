@@ -48,6 +48,8 @@ describe('renderTemplate', () => {
 			author: 'John',
 			publishedTime: '2025-01-01 00:00:00',
 			savedTime: '2025-01-01 12:00:00',
+			publishedDate: new Date('2025-01-01T00:00:00Z'),
+			savedDate: new Date('2025-01-01T12:00:00Z'),
 			image: '',
 			description: 'A description',
 			descriptionShort: 'A des...',
@@ -69,6 +71,8 @@ describe('renderTemplate', () => {
 			author: '',
 			publishedTime: '',
 			savedTime: '',
+			publishedDate: new Date(),
+			savedDate: new Date(),
 			image: '',
 			description: '',
 			descriptionShort: '',
@@ -76,5 +80,45 @@ describe('renderTemplate', () => {
 			content: '',
 		});
 		expect(result).toBe('Dup - Dup');
+	});
+
+	it('should support date filter pipe syntax for publishedTime', () => {
+		const template = "date: {{publishedTime | date('YYYY-MM-DD')}}";
+		const pubDate = new Date(2025, 0, 15, 9, 30, 0);
+		const result = renderTemplate(template, {
+			title: '',
+			link: '',
+			author: '',
+			publishedTime: '2025-01-15 09:30:00',
+			savedTime: '',
+			publishedDate: pubDate,
+			savedDate: new Date(),
+			image: '',
+			description: '',
+			descriptionShort: '',
+			tags: '',
+			content: '',
+		});
+		expect(result).toBe('date: 2025-01-15');
+	});
+
+	it('should support date filter pipe syntax for savedTime', () => {
+		const template = "saved: {{savedTime | date('YYYY/MM/DD HH:mm')}}";
+		const savedDate = new Date(2025, 5, 20, 14, 30, 0);
+		const result = renderTemplate(template, {
+			title: '',
+			link: '',
+			author: '',
+			publishedTime: '',
+			savedTime: '2025-06-20 14:30:00',
+			publishedDate: new Date(),
+			savedDate: savedDate,
+			image: '',
+			description: '',
+			descriptionShort: '',
+			tags: '',
+			content: '',
+		});
+		expect(result).toBe('saved: 2025/06/20 14:30');
 	});
 });

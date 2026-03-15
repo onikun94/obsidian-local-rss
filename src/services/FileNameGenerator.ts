@@ -13,9 +13,11 @@ export class FileNameGenerator {
 	 * @returns サニタイズされたファイル名（拡張子なし）
 	 */
 	generate(template: string, title: string, pubDate: string): string {
+		const date = new Date(pubDate);
 		let fileName = template
 			.replace(/{{title}}/g, title.trim())
-			.replace(/{{published}}/g, formatDateTime(new Date(pubDate)));
+			.replace(/{{published\s*\|\s*date\(['"](.*?)['"]\)}}/g, (_, fmt) => formatDateTime(date, fmt))
+			.replace(/{{published}}/g, formatDateTime(date));
 
 		fileName = fileName.replace(/[\\/:*?"<>|]/g, '-').trim();
 		return fileName;

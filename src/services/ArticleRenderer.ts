@@ -33,6 +33,8 @@ export class ArticleRenderer {
 			author: escapedAuthor,
 			publishedTime: formatDateTime(pubDate),
 			savedTime: formatDateTime(savedDate),
+			publishedDate: pubDate,
+			savedDate: savedDate,
 			image: rssItem.imageUrl,
 			description: escapedDescription,
 			descriptionShort: escapedDescriptionShort,

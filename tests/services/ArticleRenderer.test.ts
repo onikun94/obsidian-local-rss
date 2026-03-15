@@ -30,6 +30,8 @@ describe('ArticleRenderer', () => {
 			expect(data.tags).toBe('#tech #news');
 			expect(data.publishedTime).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
 			expect(data.savedTime).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+			expect(data.publishedDate).toBeInstanceOf(Date);
+			expect(data.savedDate).toBeInstanceOf(Date);
 		});
 
 		it('should escape YAML special characters in title', () => {

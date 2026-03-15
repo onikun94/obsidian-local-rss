@@ -40,4 +40,30 @@ describe('FileNameGenerator', () => {
 		const result = generator.generate('  {{title}}  ', 'Title', '2025-01-01T00:00:00Z');
 		expect(result).toBe('Title');
 	});
+
+	it('should support date filter pipe syntax with single quotes', () => {
+		const result = generator.generate("{{published | date('YYYY-MM-DD')}} - {{title}}", 'My Article', '2025-01-15T09:00:00Z');
+		const date = new Date('2025-01-15T09:00:00Z');
+		const year = date.getFullYear();
+		const month = String(date.getMonth() + 1).padStart(2, '0');
+		const day = String(date.getDate()).padStart(2, '0');
+		expect(result).toBe(`${year}-${month}-${day} - My Article`);
+	});
+
+	it('should support date filter pipe syntax with double quotes', () => {
+		const result = generator.generate('{{published | date("YYYY-MM-DD")}} - {{title}}', 'My Article', '2025-01-15T09:00:00Z');
+		const date = new Date('2025-01-15T09:00:00Z');
+		const year = date.getFullYear();
+		const month = String(date.getMonth() + 1).padStart(2, '0');
+		const day = String(date.getDate()).padStart(2, '0');
+		expect(result).toBe(`${year}-${month}-${day} - My Article`);
+	});
+
+	it('should support custom date format', () => {
+		const result = generator.generate("{{published | date('MM-DD')}}", 'Title', '2025-06-20T12:00:00Z');
+		const date = new Date('2025-06-20T12:00:00Z');
+		const month = String(date.getMonth() + 1).padStart(2, '0');
+		const day = String(date.getDate()).padStart(2, '0');
+		expect(result).toBe(`${month}-${day}`);
+	});
 });
