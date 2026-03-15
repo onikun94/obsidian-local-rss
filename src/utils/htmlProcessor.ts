@@ -27,7 +27,7 @@ export function stripHtml(html: string, maxLength?: number): string {
 
 	// 文字列でない場合は空文字列を返す（xml2jsがオブジェクトを返す場合の対策）
 	if (typeof html !== 'string') {
-		console.warn('stripHtml: received non-string input', html);
+		console.error('stripHtml: received non-string input', html);
 		return '';
 	}
 
@@ -56,7 +56,7 @@ export function htmlToMarkdown(html: string): string {
 
 	// 文字列でない場合は空文字列を返す（xml2jsがオブジェクトを返す場合の対策）
 	if (typeof html !== 'string') {
-		console.warn('htmlToMarkdown: received non-string input', html);
+		console.error('htmlToMarkdown: received non-string input', html);
 		return '';
 	}
 

@@ -229,7 +229,7 @@ export class UpdateFeeds {
 		if (!content) return content;
 
 		if (typeof content !== 'string') {
-			console.warn('resizeImagesInContent: received non-string input', content);
+			console.error('resizeImagesInContent: received non-string input', content);
 			return '';
 		}
 

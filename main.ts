@@ -83,9 +83,9 @@ export default class LocalRssPlugin extends Plugin {
 		}
 
 		if (this.settings.updateInterval > 0) {
-			this.updateIntervalId = window.setInterval(() => {
+			this.updateIntervalId = this.registerInterval(window.setInterval(() => {
 				this.updateFeeds();
-			}, this.settings.updateInterval * 60 * 1000);
+			}, this.settings.updateInterval * 60 * 1000));
 		}
 	}
 

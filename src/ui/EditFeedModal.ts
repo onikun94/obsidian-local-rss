@@ -56,7 +56,7 @@ export class EditFeedModal extends Modal {
 		const { contentEl } = this;
 		contentEl.addClass('local-rss-edit-feed-modal');
 
-		contentEl.createEl('h2', { text: t('editFeed') });
+		new Setting(contentEl).setName(t('editFeed')).setHeading();
 
 		// --- 基本情報 ---
 		new Setting(contentEl)
