@@ -2,7 +2,7 @@ export default {
 	// Commands
 	updateRssFeeds: 'Update RSS feeds',
 	addRssFeed: 'Add RSS feed',
-	
+
 	// Notices
 	updatingRssFeeds: 'Updating RSS feeds...',
 	failedToFetchFeed: 'Failed to fetch feed: %0',
@@ -13,10 +13,12 @@ export default {
 	feedNameRequired: 'Feed name is required',
 	feedUrlRequired: 'Feed URL is required',
 	addedFeed: 'Added feed: %0',
-	
+
 	// Settings
 	rssFolder: 'RSS folder',
 	rssFolderDesc: 'Folder where RSS articles will be saved',
+	singleFilePerFeed: 'One file per feed',
+	singleFilePerFeedDesc: 'Instead of creating one file per article, create a single Markdown file per feed with all articles as sections inside it. New articles are added to the top.',
 	fileNameTemplate: 'File name template',
 	fileNameTemplateDesc: 'Template for article file names. Variables {{title}} and {{published}} available',
 	contentTemplate: 'Content template',
@@ -52,14 +54,14 @@ export default {
 	addNewFeedDesc: 'Add a new RSS feed to download',
 	updateFeedsNow: 'Update feeds now',
 	updateFeedsNowDesc: 'Manually update all enabled RSS feeds',
-	
+
 	// Modal
 	feedName: 'Feed name',
 	feedUrl: 'Feed URL',
 	customFolderName: 'Custom folder name (optional)',
 	customFolderNameDesc: 'Subfolder name within RSS folder',
 	customFolderPlaceholder: 'Leave empty to use feed name',
-	
+
 	// Buttons
 	addFeed: 'Add feed',
 	editFeed: 'Edit feed',
@@ -69,14 +71,14 @@ export default {
 	updateNow: 'Update now',
 	savedFeed: 'Saved feed: %0',
 	errorSavingFeed: 'Failed to save feed',
-	
+
 	// Settings header
 	rssFeedDownloaderSettings: 'RSS feed downloader settings',
-	
+
 	// Time units
 	days: 'Days',
 	minutes: 'Minutes',
-	
+
 	// Date options
 	publishedDate: 'Published date',
 	savedDate: 'Saved date',

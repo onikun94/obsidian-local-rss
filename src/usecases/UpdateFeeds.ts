@@ -62,13 +62,10 @@ export class UpdateFeeds {
 		const parser = new xml2js.Parser({ explicitArray: false });
 		const result = await parser.parseStringPromise(xml);
 
-		const feedFolderPath = normalizePath(`${baseFolderPath}/${feed.folder || feed.name}`);
-		const feedFolder = this.vault.getAbstractFileByPath(feedFolderPath);
-		if (!feedFolder) {
-			await this.vault.createFolder(feedFolderPath);
-		}
-
 		const resolved = FeedSettingsResolver.resolve(feed, this.settings);
+
+		// アイテム収集（RSS/Atom共通）
+		const collectedItems: { rssItem: RssItem; originalItem: unknown }[] = [];
 
 		// RSS or Atom判定
 		let channel = result.rss?.channel;
@@ -88,7 +85,7 @@ export class UpdateFeeds {
 				for (const item of items) {
 					const rssItem = this.rssItemBuilder.fromAtomItem(item, atomFeed, feed);
 					await this.enrichWithImage(rssItem, item);
-					await this.saveRssItem(rssItem, feedFolderPath, resolved.template);
+					collectedItems.push({ rssItem, originalItem: item });
 				}
 			} else {
 				new Notice(t('unsupportedFeedFormat', feed.name));
@@ -99,15 +96,32 @@ export class UpdateFeeds {
 			for (const item of items) {
 				const rssItem = this.rssItemBuilder.fromRssItem(item, feed);
 				await this.enrichWithImage(rssItem, item);
-				await this.saveRssItem(rssItem, feedFolderPath, resolved.template);
+				collectedItems.push({ rssItem, originalItem: item });
 			}
 		}
 
-		// 古いファイル・履歴を削除（Atom/RSS共通）
-		if (resolved.autoDeleteEnabled) {
-			await this.deleteOldFiles(feedFolderPath, resolved);
-			this.articleHistory.purgeOlderThan(this.calcCutoffDate(resolved));
+		if (this.settings.singleFilePerFeed) {
+			// single-file mode: フィードごとに1つの.mdファイルに追記
+			const feedFilePath = normalizePath(`${baseFolderPath}/${feed.folder || feed.name}.md`);
+			await this.saveItemsToFeedFile(collectedItems.map(c => c.rssItem), feedFilePath);
+		} else {
+			// デフォルト: フィードごとにフォルダを作成し、記事ごとにファイルを作成
+			const feedFolderPath = normalizePath(`${baseFolderPath}/${feed.folder || feed.name}`);
+			const feedFolder = this.vault.getAbstractFileByPath(feedFolderPath);
+			if (!feedFolder) {
+				await this.vault.createFolder(feedFolderPath);
+			}
+
+			for (const { rssItem } of collectedItems) {
+				await this.saveRssItem(rssItem, feedFolderPath, resolved.template);
+			}
+
+			if (resolved.autoDeleteEnabled) {
+				await this.deleteOldFiles(feedFolderPath, resolved);
+				this.articleHistory.purgeOlderThan(this.calcCutoffDate(resolved));
+			}
 		}
+
 		this.articleHistory.enforceCapLimit();
 	}
 
@@ -185,6 +199,44 @@ export class UpdateFeeds {
 			}
 		} catch (error) {
 			console.error('Error deleting old files:', error);
+		}
+	}
+
+	/**
+	 * 複数のRSSアイテムを1つのMarkdownファイルに保存（single-file mode）
+	 * 新しい記事はファイルの先頭に追記される
+	 */
+	private async saveItemsToFeedFile(items: RssItem[], feedFilePath: string): Promise<void> {
+		const newSections: string[] = [];
+
+		for (const rssItem of items) {
+			if (rssItem.link && this.articleHistory.hasBeenDownloaded(rssItem.link)) {
+				continue;
+			}
+
+			let processedContent = rssItem.content;
+			if (this.settings.imageWidth && this.settings.imageWidth !== '100%') {
+				processedContent = this.resizeImagesInContent(processedContent);
+			}
+
+			const section = this.articleRenderer.renderSection(rssItem, processedContent);
+			newSections.push(section);
+
+			if (rssItem.link) {
+				this.articleHistory.addToHistory(rssItem.link);
+			}
+		}
+
+		if (newSections.length === 0) return;
+
+		const newContent = newSections.join('\n');
+		const existingFile = this.vault.getAbstractFileByPath(feedFilePath);
+
+		if (existingFile instanceof TFile) {
+			const existingContent = await this.vault.read(existingFile);
+			await this.vault.modify(existingFile, newContent + '\n' + existingContent);
+		} else {
+			await this.vault.create(feedFilePath, newContent);
 		}
 	}
 

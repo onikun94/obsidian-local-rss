@@ -51,6 +51,16 @@ export class LocalRssSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
+			.setName(t('singleFilePerFeed'))
+			.setDesc(t('singleFilePerFeedDesc'))
+			.addToggle(toggle => toggle
+				.setValue(this.settings.singleFilePerFeed)
+				.onChange(async (value) => {
+					this.settings.singleFilePerFeed = value;
+					await this.onSaveSettings();
+				}));
+
+		new Setting(containerEl)
 			.setName(t('fileNameTemplate'))
 			.setDesc(t('fileNameTemplateDesc'))
 			.addText(text => text

@@ -56,4 +56,38 @@ export class ArticleRenderer {
 		templateData.content = htmlToMarkdown(processedContent);
 		return renderTemplate(preparedTemplate, templateData);
 	}
+
+	/**
+	 * RSSアイテムをsingle-file modeのMarkdownセクションとして生成
+	 * @param rssItem RSSアイテム
+	 * @param processedContent 処理済みのHTMLコンテンツ
+	 * @returns Markdownセクション文字列（--- 区切り付き）
+	 */
+	renderSection(rssItem: RssItem, processedContent: string): string {
+		const data = this.buildTemplateData(rssItem);
+		data.content = htmlToMarkdown(processedContent);
+
+		const lines: string[] = [];
+		lines.push(`## ${data.title}`, '');
+		lines.push(`**Published:** ${data.publishedTime} · **Author:** ${data.author} · [Link](${data.link})`, '');
+
+		if (data.description) {
+			lines.push(`> ${data.description}`, '');
+		}
+
+		if (rssItem.imageUrl) {
+			lines.push(`![](${rssItem.imageUrl})`, '');
+		}
+
+		if (data.tags) {
+			lines.push(data.tags, '');
+		}
+
+		if (data.content) {
+			lines.push(data.content, '');
+		}
+
+		lines.push('---', '');
+		return lines.join('\n');
+	}
 }
