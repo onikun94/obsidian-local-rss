@@ -2,13 +2,13 @@ import { moment } from 'obsidian';
 import en from './locales/en';
 import ja from './locales/ja';
 import fr from './locales/fr';
+import pt from './locales/pt';
 
 const localeMap: { [key: string]: Partial<typeof en> } = {
 	en,
-	ja,
-	"ja-JP": ja,
-	fr,
-	"fr-FR": fr,
+	ja, "ja-JP": ja,
+	fr, "fr-FR": fr,
+	pt, "pt-BR": pt
 };
 
 export function t(

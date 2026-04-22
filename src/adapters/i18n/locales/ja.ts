@@ -4,7 +4,7 @@ const ja: Partial<typeof en> = {
 	// Commands
 	updateRssFeeds: 'RSS フィードを更新',
 	addRssFeed: 'RSS フィードを追加',
-	
+
 	// Notices
 	updatingRssFeeds: 'RSSフィードを更新中...',
 	failedToFetchFeed: 'フィードの取得に失敗しました: %0',
@@ -15,7 +15,7 @@ const ja: Partial<typeof en> = {
 	feedNameRequired: 'フィード名は必須です',
 	feedUrlRequired: 'フィードURLは必須です',
 	addedFeed: 'フィードを追加しました: %0',
-	
+
 	// Settings
 	rssFolder: 'RSSフォルダ',
 	rssFolderDesc: 'RSSの記事が保存されるフォルダ',
@@ -54,14 +54,14 @@ const ja: Partial<typeof en> = {
 	addNewFeedDesc: 'ダウンロードする新しいRSSフィードを追加',
 	updateFeedsNow: '今すぐフィードを更新',
 	updateFeedsNowDesc: '有効なすべてのRSSフィードを手動で更新',
-	
+
 	// Modal
 	feedName: 'フィード名',
 	feedUrl: 'フィードURL',
 	customFolderName: 'カスタムフォルダ名（オプション）',
 	customFolderNameDesc: 'RSSフォルダ内のサブフォルダ名',
 	customFolderPlaceholder: 'フィード名を使用する場合は空のままにしてください',
-	
+
 	// Buttons
 	addFeed: 'フィードを追加',
 	editFeed: 'フィードを編集',
@@ -71,14 +71,14 @@ const ja: Partial<typeof en> = {
 	updateNow: '今すぐ更新',
 	savedFeed: 'フィードを保存しました: %0',
 	errorSavingFeed: 'フィードの保存に失敗しました',
-	
+
 	// Settings header
 	rssFeedDownloaderSettings: 'RSSフィードダウンローダー設定',
-	
+
 	// Time units
 	days: '日',
 	minutes: '分',
-	
+
 	// Date options
 	publishedDate: '公開日',
 	savedDate: '保存日',

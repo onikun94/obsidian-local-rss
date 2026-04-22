@@ -40,6 +40,7 @@ export interface LocalRssSettings {
 	autoDeleteTimeUnit: string;
 	autoDeleteBasedOn: string;
 	downloadHistory: DownloadHistoryEntry[];
+	singleFilePerFeed: boolean;
 }
 
 export const DEFAULT_SETTINGS: LocalRssSettings = {
@@ -57,5 +58,6 @@ export const DEFAULT_SETTINGS: LocalRssSettings = {
 	autoDeleteDays: 30,
 	autoDeleteTimeUnit: 'days',
 	autoDeleteBasedOn: 'saved',
-	downloadHistory: []
+	downloadHistory: [],
+	singleFilePerFeed: false,
 };
